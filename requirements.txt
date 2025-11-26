@@ -1,0 +1,43 @@
+
+# Core dependencies
+numpy>=1.21.0
+opencv-python>=4.5.0
+pandas>=1.3.0
+torch>=2.0.0
+tensorflow>=2.8.0
+scikit-learn>=1.0.0
+torchvision
+tf-keras
+# Segment Anything Model
+segment-anything @ git+https://github.com/facebookresearch/segment-anything.git
+
+# API and server
+fastapi>=0.68.0
+uvicorn>=0.15.0
+python-multipart>=0.0.5
+aiofiles>=0.8.0
+
+# LLM Integration
+openai>=1.0.0  # Required for new OpenAI client syntax
+
+# Testing
+requests>=2.26.0
+pytest>=6.2.5
+
+# Utilities
+python-dotenv>=0.19.0
+openpyxl>=3.0.9  # For Excel file support
+Pillow>=8.3.0    # For image processing
+tqdm>=4.62.0     # For progress bars
+
+#chatbot
+streamlit
+langchain
+langchain-community
+langchain-huggingface
+huggingface_hub
+sentence-transformers
+faiss-cpu
+
+#Django
+Django
