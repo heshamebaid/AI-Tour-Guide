@@ -1,0 +1,36 @@
+# Test Configuration for Hieroglyph Processing Pipeline - Image Processing Section
+
+# Image Processing Parameters
+IMAGE_SIZE: [320, 320]      # Reduced from [512, 512] for faster processing
+CROP_SIZE: [224, 224]       # Reduced from [299, 299] to match test model expectations
+GAUSSIAN_KERNEL: [3, 3]     # Smaller kernel for faster blurring (original was [5,5])
+ROBERTS_KERNEL_SIZE: 3      # Added parameter for test control
+EDGE_THRESHOLD: 50          # Added parameter for test control
+MAX_IMAGE_DIMENSION: 1024   # Added parameter for test validation
+
+# Image Processing Flags
+ENABLE_EDGE_DETECTION: true
+ENABLE_RESIZING: true
+ENABLE_GRAYSCALE: true
+ENABLE_GAUSSIAN_BLUR: true
+SAVE_INTERMEDIATE_IMAGES: false  # Disabled for tests
+
+# Color Space Parameters
+COLOR_SPACE: "RGB"          # Options: RGB, BGR, GRAY
+CONVERT_TO_FLOAT: false
+
+# Normalization Parameters
+NORMALIZE_MEAN: [0.485, 0.456, 0.406]  # Standard ImageNet mean
+NORMALIZE_STD: [0.229, 0.224, 0.225]    # Standard ImageNet std
+NORMALIZE_ENABLED: false    # Disabled for tests
+
+# Edge Detection Parameters
+EDGE_DETECTION_METHOD: "roberts"  # Options: roberts, sobel, canny
+ROBERTS_SCALE: 1.0
+ROBERTS_DELTA: 0
+CANNY_THRESHOLD1: 50
+CANNY_THRESHOLD2: 150
+SOBEL_KERNEL_SIZE: 3
+
+# Debugging Parameters
+DEBUG_IMAGE_SAVE_PATH: "test_output/debug_images"

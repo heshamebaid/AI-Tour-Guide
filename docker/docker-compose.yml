@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  hieroglyph-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      - ./logs:/app/logs
+      - ./temp_uploads:/app/temp_uploads
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    restart: unless-stopped
