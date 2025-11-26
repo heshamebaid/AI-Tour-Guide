@@ -1,0 +1,33 @@
+# Hieroglyph Processing Configuration
+
+# Image processing
+IMAGE_SIZE: [512, 512]
+CROP_SIZE: [299, 299]
+GAUSSIAN_KERNEL: [5, 5]
+
+# SAM parameters
+SAM_MODEL_TYPE: "vit_b"
+SAM_POINTS_PER_SIDE: 64
+SAM_PRED_IOU_THRESH: 0.8
+SAM_STABILITY_SCORE_THRESH: 0.85
+SAM_CROP_N_LAYERS: 1
+SAM_CROP_N_POINTS_DOWNSCALE_FACTOR: 2
+SAM_MIN_MASK_REGION_AREA: 70
+
+# Post-processing
+MIN_MASK_AREA: 500
+CLUSTERING_EPS: 20
+CLUSTERING_MIN_SAMPLES: 1
+
+# Paths
+SAM_CHECKPOINT_PATH: "models/sam_vit_b.pth"
+CLASSIFIER_MODEL_PATH: "models/InceptionV3_model.h5"
+GARDINER_LIST_PATH: "data/Alan_Gardiners_List_of_Hieroglyphic_Signs.xlsx"
+
+# Story generation
+STORY_ENABLED: true
+LLM_MODEL: "qwen/qwen3-30b-a3b:free"
+STORY_PROMPT: |
+  You are an expert Egyptologist. 
+  Given these hieroglyphs: {hieroglyphs}
+  Create a culturally accurate story that weaves their meanings together.
