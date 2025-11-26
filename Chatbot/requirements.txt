@@ -1,0 +1,14 @@
+streamlit
+langchain
+langchain-community
+langchain-huggingface
+huggingface_hub
+sentence-transformers
+faiss-cpu
+fastapi
+uvicorn
+# RAG system dependencies
+python-dotenv
+PyMuPDF
+numpy
+requests
