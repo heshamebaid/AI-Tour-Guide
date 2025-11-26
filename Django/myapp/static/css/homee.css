@@ -1,0 +1,41 @@
+body {
+  background: linear-gradient(rgba(20,20,30,0.7), rgba(20,20,30,0.7)), url('/static/main.jpg') no-repeat center center fixed;
+  background-size: cover;
+  min-height: 100vh;
+}
+
+.home-title {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 2rem;
+  font-weight: bold;
+  text-align: center;
+  max-width: 90%;
+  line-height: 1.5;
+  padding: 1rem;
+}
+
+.button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 29rem;
+}
+
+.action-button {
+  background-color: #1a1a1a;
+  border: none;
+  color: #b19cd9;
+  padding: 1.2rem 2.3rem;
+  margin: 0 3rem;
+  font-size: 1.3rem;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: background-color 0.3s ease;
+}
+
+.action-button:hover {
+  color: #b19cd9;
+}

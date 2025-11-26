@@ -1,0 +1,78 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap");
+
+body {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  height: 100vh;
+  background: linear-gradient(to bottom right, #0f0f0f, #1a1a1a);
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1a1a1a;
+  padding: 1rem 2rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+
+
+
+.navbar-title {
+  font-weight: bold;
+  font-size: 1.5rem;
+  color: white;
+}
+
+.site-name{
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 1rem;
+  color: #ccc;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: #bbb;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.nav-links a:hover,
+.nav-links .highlight-link {
+  color: #fcd34d;
+}
+
+.nav-right {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+
+.welcome {
+  font-weight: 500;
+  font-size: 1rem;
+  color: #ccc;
+}
+
+.logout {
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 1px;
+  color: #b19cd9;
+  transition: color 0.25s ease;
+}
+
+.logout:hover {
+  color: #d3c6ff;
+}
+

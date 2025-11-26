@@ -1,0 +1,38 @@
+{% load static %}
+
+<html>
+    <head>
+
+    <link rel="preload" as="style" href="{% static 'css/loginn.css' %}" onload="this.rel = 'stylesheet'"/>
+
+    </head>
+    <body>
+        <form action="" method="post" class="login">
+            {% csrf_token %}
+            <div class="title-login">
+                SIGN IN
+            </div>
+            <div class="form-css">
+                <div class="error-msg">{{ error }}</div>
+
+                <div class="username-css">
+                    Username:
+                </div>
+                <div>
+                    <input type="text" name="username-input" placeholder="Enter your username" >
+                </div>
+            </div>
+            <div class="form-css">
+                <div class="password-css">
+                    Password:
+                </div>
+                <div>
+                    <input type="password" name="password-input" placeholder="Enter your password" >
+                </div>
+            </div>
+             <button type="submit">Sign In</button>
+            <a href="{% url 'signup'%}">Don't have an account?</a>
+        </div>
+        </form>
+    </body>
+</html>

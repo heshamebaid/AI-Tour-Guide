@@ -1,0 +1,45 @@
+{% load static %}
+
+<html>
+    <head>
+    <link rel="preload" as="style" href="{% static 'css/signup.css' %}" onload="this.rel = 'stylesheet'"/>
+    </head>
+    <body>
+    <div class="signup">
+        <div class="title-signup">SIGN UP</div>
+
+        <div class="error-msg">{{ error }}</div>
+
+        <form method="post" >
+            {% csrf_token %}
+
+            <div class="form-css">
+                <div class="username-css">Username:</div>
+                <input name="username-input" type="text" placeholder="Choose a username" required>
+            </div>
+
+            <div class="form-css">
+                <div class="email-css">Email:</div>
+                <input name="email-input" type="email" name="email"
+                       placeholder="you@example.com" required>
+            </div>
+
+            <div class="form-css">
+                <div class="password-css" >Password:</div>
+                <input name="password-input" type="password"  placeholder="Create a password" required>
+            </div>
+
+            <div class="form-css">
+                <div class="password-css" >Confirm Password:</div>
+                <input name="password-input-1" type="password" placeholder="Repeat the password" required>
+            </div>
+
+            <button type="submit">Sign Up</button>
+        </form>
+
+        <a href="{% url 'login' %}">
+            Already have an account?
+        </a>
+    </div>
+</body>
+</html>

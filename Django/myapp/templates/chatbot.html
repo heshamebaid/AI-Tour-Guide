@@ -1,0 +1,30 @@
+{% load static %}
+<html>
+<head>
+  <link rel="preload" as="style" href="{% static 'css/navbar.css' %}" onload="this.rel = 'stylesheet'" />
+  <link rel="preload" as="style" href="{% static 'css/chatbot.css' %}" onload="this.rel = 'stylesheet'" />
+</head>
+<body>
+  {% include 'partial/navbar.html' %}
+  
+  <div class="chatbot">
+    <h2 class="section-title">Chat with AI</h2>
+
+<form method="POST">
+  {% csrf_token %}
+  <div class="chatbox input-box">
+    {{ form.user_input }}
+  </div>
+  <button type="submit" class="chat-btn">Ask</button>
+</form>
+
+    {% if response %}
+    <div class="chatbox response-box">
+      <strong>AI:</strong> {{ response }}
+    </div>
+    {% endif %}
+  </div>
+
+  <script src="{% static 'js/chatbot.js' %}"></script>
+</body>
+</html>

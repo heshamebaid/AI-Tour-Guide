@@ -1,0 +1,27 @@
+{% load static %}
+
+
+<nav class="navbar">
+    <div class="navbar-title">
+        <a href="{% url 'home' %}" class="site-name">AI-Powered Tour Guide Platform for Ancient Egyptian History</a>
+    </div>
+
+    <div class="nav-links">
+        <a href="{% url 'home' %}">Home</a>
+        <a href="{% url 'translator' %}">Translator</a>
+        <a href="{% url 'chatbot' %}">Chatbot</a>
+        <a href="{% url 'talk_to_pharos' %}" class="highlight-link">Talk To Pharos</a>
+    </div>
+
+    <div class="nav-right">
+<div class="welcome">
+    {% if request.user.is_authenticated %}
+        WELCOME {{ request.user.username }}
+    {% else %}
+        WELCOME Guest
+    {% endif %}
+</div>
+      <a href="{% url 'login' %}" class="logout">Sign Out</a>
+    </div>
+  </div>
+</nav>

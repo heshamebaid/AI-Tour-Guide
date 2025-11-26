@@ -1,0 +1,211 @@
+body {
+  background: linear-gradient(rgba(20,20,30,0.7), rgba(20,20,30,0.7)), url('/static/temple.jpg') no-repeat center center fixed;
+  background-size: cover;
+  min-height: 100vh;
+}
+
+.translator {
+    text-align: center;
+    margin-top: 6rem;
+    color: white;
+}
+
+.section-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 3.5rem;
+}
+
+.instructions {
+  font-size: 1rem;
+  color: #ccc;
+  margin-bottom: 1.5rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.upload-btn {
+  display: inline-block;
+  background-color: #b18fff;
+  color: black;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 1rem;
+  margin-bottom: 3rem;
+}
+
+.upload-btn:hover {
+  background-color: #d5bfff;
+}
+
+.output-box {
+  margin-top: 2rem;
+  background-color: #1a1a1a;
+  padding: 1rem;
+  border-radius: 6px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  color: #eee;
+  text-align: left;
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
+}
+
+.extracted-text-container {
+  background: #23272f;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.extracted-text {
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+  font-size: 1.1rem;
+  color: #b7e0c7;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-text {
+  color: #ff6b6b;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: #b18fff;
+  color: #23272f;
+  border: none;
+  border-radius: 4px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.copy-btn:hover {
+  background: #d5bfff;
+}
+
+.no-text {
+  color: #aaa;
+  font-style: italic;
+}
+
+.translator-btns {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.nav-btn {
+  display: inline-block;
+  background-color: #b18fff;
+  color: #23272f;
+  font-weight: bold;
+  padding: 0.5rem 1.2rem;
+  border: none;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 1rem;
+  transition: background 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+.nav-btn:hover {
+  background-color: #d5bfff;
+  color: #23272f;
+}
+
+.symbols-section {
+  margin-top: 2.5rem;
+  text-align: left;
+}
+.symbols-title {
+  font-size: 1.2rem;
+  color: #b18fff;
+  margin-bottom: 1rem;
+  font-weight: bold;
+}
+.symbols-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  justify-content: flex-start;
+}
+.symbol-thumb {
+  background: #23272f;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s;
+  width: 70px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.symbol-thumb img {
+  max-width: 60px;
+  max-height: 60px;
+  display: block;
+}
+.symbol-thumb:hover {
+  box-shadow: 0 4px 16px #b18fff44;
+  transform: scale(1.08);
+}
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+  background-color: rgba(0,0,0,0.5);
+}
+.modal-content {
+  background-color: #23272f;
+  margin: 8% auto;
+  padding: 2rem 2.5rem;
+  border: 1px solid #b18fff;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 400px;
+  color: #eee;
+  position: relative;
+  box-shadow: 0 8px 32px #000a;
+}
+.close {
+  color: #b18fff;
+  position: absolute;
+  top: 1rem;
+  right: 1.5rem;
+  font-size: 2rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+#modalDetails {
+  margin-top: 1.5rem;
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+.story-title {
+  font-size: 1.1rem;
+  color: #b18fff;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}

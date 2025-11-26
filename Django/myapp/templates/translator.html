@@ -1,0 +1,104 @@
+{% load static %}
+<html>
+    <head>
+        <link rel="preload" as="style" href="{% static 'css/navbar.css' %}" onload="this.rel = 'stylesheet'"/>
+        <link rel="preload" as="style" href="{% static 'css/translator.css' %}" onload="this.rel = 'stylesheet'"/>
+
+    </head>
+    <body>
+        {% include 'partial/navbar.html' %}
+
+        <div class="translator">
+            <div class="section-title">Image To Text Translator</div>
+
+            <ol class="instructions">
+                <li>Upload an image containing ancient Egyptian text (e.g., a photo of a wall, papyrus, or artifact).</li>
+                <li>Click the <b>Translate Image</b> button to submit your image.</li>
+                <li>The system will automatically detect, segment, and classify the hieroglyphic symbols.</li>
+                <li>The AI will generate a translation or story based on the detected symbols.</li>
+                <li>You can view and click on each segmented symbol to see its details (Gardiner Code, confidence, description, etc.).</li>
+            </ol>
+
+            <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{form.image}}
+            <button type="submit" class="upload-btn">Translate Image</button>
+            </form>
+
+        <div class="output-box">
+            {% if error %}
+                <div class="extracted-text-container error-text">{{ error }}</div>
+            {% elif story %}
+                <div class="extracted-text-container">
+                    <div class="story-title">Story</div>
+                    <pre class="extracted-text">{{ story }}</pre>
+                    {% if explanation %}
+                        <div class="story-title" style="margin-top:1.5rem;">Explanation</div>
+                        <pre class="extracted-text">{{ explanation }}</pre>
+                    {% endif %}
+                </div>
+                {% if symbols and symbols|length > 0 %}
+                <div class="symbols-section">
+                    <div class="symbols-title">Segmented Symbols</div>
+                    <div class="symbols-grid">
+                        {% for symbol in symbols %}
+                        <div class="symbol-thumb" data-symbol-idx="{{ forloop.counter0 }}">
+                            <img src="data:image/png;base64,{{ symbol.symbol_image_base64 }}" alt="Symbol" />
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div id="symbolModal" class="modal">
+                  <div class="modal-content">
+                    <span class="close" onclick="closeModal()">&times;</span>
+                    <div id="modalDetails"></div>
+                  </div>
+                </div>
+                {% endif %}
+            {% else %}
+                <div id="loadingSpinner" class="loading-spinner" style="display:none;"></div>
+            {% endif %}
+        </div>
+        <div class="translator-btns">
+            <a href="/home/" class="nav-btn">Return to Home</a>
+        </div>
+            </div>
+            <script src="{% static 'js/translator.js' %}"></script>
+            <script>
+            function copyExtractedText() {
+                var text = document.getElementById('extractedText').innerText;
+                navigator.clipboard.writeText(text);
+            }
+            </script>
+            <script>
+            // Show loading spinner on form submit
+            document.querySelector('form').addEventListener('submit', function() {
+                document.getElementById('loadingSpinner').style.display = 'block';
+            });
+            </script>
+            {% if symbols and symbols|length > 0 %}
+            <script type="text/javascript">
+            window.symbolData = {{ symbols|safe }};
+            document.querySelectorAll('.symbol-thumb').forEach(function(el) {
+              el.onclick = function() {
+                var idx = parseInt(this.getAttribute('data-symbol-idx'));
+                var s = window.symbolData[idx];
+                var html = `<b>Gardiner Code:</b> ${s['Gardiner Code'] || ''}<br>`;
+                html += `<b>Confidence:</b> ${s['confidence'] ? (s['confidence']*100).toFixed(1)+'%' : ''}<br>`;
+                html += `<b>Hieroglyph:</b> ${s['Hieroglyph'] || ''}<br>`;
+                html += `<b>Description:</b> ${s['Description'] || ''}<br>`;
+                document.getElementById('modalDetails').innerHTML = html;
+                document.getElementById('symbolModal').style.display = 'block';
+              };
+            });
+            function closeModal() {
+              document.getElementById('symbolModal').style.display = 'none';
+            }
+            window.onclick = function(event) {
+              var modal = document.getElementById('symbolModal');
+              if (event.target == modal) { modal.style.display = 'none'; }
+            }
+            </script>
+            {% endif %}
+    </body>
+</html>

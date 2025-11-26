@@ -1,0 +1,61 @@
+{% load static %}
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Talk To Pharos</title>
+  <link rel="preload" as="style" href="{% static 'css/navbar.css' %}" onload="this.rel='stylesheet'">
+  <link rel="preload" as="style" href="{% static 'pharos/talk_to_pharos.css' %}" onload="this.rel='stylesheet'">
+</head>
+<body>
+  {% include 'partial/navbar.html' %}
+
+  <div id="pharos-app"
+       class="pharos-app"
+       data-service-url="{{ pharos_service_url }}">
+
+    <aside class="persona-panel">
+      <h2>Choose Your Pharaoh</h2>
+      <div id="persona-list" class="persona-list">
+        <div class="persona-card skeleton">
+          <div class="avatar-placeholder"></div>
+          <div>
+            <p>Loading personas...</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="conversation-panel">
+      <header>
+        <div>
+          <p class="eyebrow">Talk To Pharos</p>
+          <h1 id="active-pharaoh-name">Select a Pharaoh</h1>
+          <p id="active-pharaoh-era" class="era"></p>
+        </div>
+        <button id="mic-toggle" class="mic-btn" aria-pressed="false">
+          🎙️ Start Listening
+        </button>
+      </header>
+
+      <section id="conversation-timeline" class="conversation-timeline">
+        <div class="empty-state">
+          <p>Select a Pharaoh to begin the conversation.</p>
+        </div>
+      </section>
+
+      <footer class="composer">
+        <textarea id="traveler-input"
+                  rows="3"
+                  placeholder="Ask the Pharaoh about battles, temples, or daily life..."></textarea>
+        <div class="composer-actions">
+          <button id="clear-history" type="button" class="secondary-btn">Clear</button>
+          <button id="send-message" type="button" class="primary-btn">Send</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script src="{% static 'pharos/talk_to_pharos.js' %}"></script>
+</body>
+</html>
+
