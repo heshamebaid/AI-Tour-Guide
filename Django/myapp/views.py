@@ -1,11 +1,15 @@
 import os
+import json
 
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.shortcuts import redirect, render
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 from .forms import ChatbotForm, ImageUploadForm
-from .models import UploadedImage
+from .models import UploadedImage, Chatbot
+from .rag_service import get_rag_service
 
 import requests
 
@@ -102,30 +106,132 @@ def upload_image(request):
     })
 
 def chatbot_view(request):
-    response = None
+    """
+    Enhanced chatbot view using Agentic_RAG pipeline.
+    Provides document search, web search, and image search capabilities.
+    """
+    response_data = None
+    
     if request.method == 'POST':
         form = ChatbotForm(request.POST)
         if form.is_valid():
             user_input = form.cleaned_data['user_input']
-            api_url = "http://localhost:8080/chat"
-            try:
-                api_response = requests.post(api_url, json={"query": user_input})
-                if api_response.ok:
-                    bot_response = api_response.json().get("answer", "No answer")
-                else:
-                    bot_response = f"Chatbot failed: {api_response.text}"
-            except Exception as e:
-                bot_response = f"Error calling chatbot API: {e}"
+            
+            # Use the RAG service for intelligent responses
+            rag_service = get_rag_service()
+            
+            if rag_service.is_ready():
+                # Get response from RAG pipeline with all features
+                result = rag_service.chat(
+                    user_input=user_input,
+                    use_agent=True,
+                    include_images=True
+                )
+                
+                bot_response = result.get("answer", "Sorry, I couldn't generate a response.")
+                sources = result.get("sources", [])
+                images = result.get("images", [])
+                web_info = result.get("web_info")
+                documents_found = result.get("documents_found", 0)
+            else:
+                # Fallback to external API if RAG service not available
+                try:
+                    api_url = "http://localhost:8080/chat"
+                    api_response = requests.post(api_url, json={"query": user_input})
+                    if api_response.ok:
+                        bot_response = api_response.json().get("answer", "No answer")
+                    else:
+                        bot_response = f"Chatbot failed: {api_response.text}"
+                except Exception as e:
+                    bot_response = f"Error: {e}"
+                sources = []
+                images = []
+                web_info = None
+                documents_found = 0
+            
+            # Save to database
             chat = form.save(commit=False)
             chat.bot_response = bot_response
+            chat.set_sources(sources)
+            chat.set_images(images)
+            chat.web_info = web_info if web_info else ""
+            chat.documents_found = documents_found
             chat.save()
-            response = bot_response
+            
+            response_data = {
+                "answer": bot_response,
+                "sources": sources,
+                "images": images,
+                "web_info": web_info,
+                "documents_found": documents_found
+            }
     else:
         form = ChatbotForm()
+    
+    # Get recent chat history
+    chat_history = Chatbot.objects.order_by('-timestamp')[:10]
+    
     return render(request, 'chatbot.html', {
         'form': form,
-        'response': response
+        'response': response_data,
+        'chat_history': chat_history
     })
+
+
+@csrf_exempt
+def chatbot_api(request):
+    """
+    API endpoint for AJAX chatbot requests.
+    Returns JSON response with full RAG results.
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        user_input = data.get("query", "")
+        use_agent = data.get("use_agent", True)
+        include_images = data.get("include_images", True)
+    except json.JSONDecodeError:
+        user_input = request.POST.get("query", "")
+        use_agent = True
+        include_images = True
+    
+    if not user_input:
+        return JsonResponse({"error": "No query provided"}, status=400)
+    
+    rag_service = get_rag_service()
+    
+    if not rag_service.is_ready():
+        return JsonResponse({
+            "error": "RAG service not available",
+            "status": rag_service.get_status()
+        }, status=503)
+    
+    result = rag_service.chat(
+        user_input=user_input,
+        use_agent=use_agent,
+        include_images=include_images
+    )
+    
+    # Save to database
+    chat = Chatbot(
+        user_input=user_input,
+        bot_response=result.get("answer", ""),
+        documents_found=result.get("documents_found", 0)
+    )
+    chat.set_sources(result.get("sources", []))
+    chat.set_images(result.get("images", []))
+    chat.web_info = result.get("web_info", "")
+    chat.save()
+    
+    return JsonResponse(result)
+
+
+def rag_status(request):
+    """Check RAG service status."""
+    rag_service = get_rag_service()
+    return JsonResponse(rag_service.get_status())
 
 
 def talk_to_pharos_view(request):

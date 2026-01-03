@@ -8,4 +8,8 @@ urlpatterns=[
     path('translator/',views.upload_image,name="translator"),
     path('chatbot/',views.chatbot_view,name="chatbot"),
     path('talk-to-pharos/', views.talk_to_pharos_view, name="talk_to_pharos"),
+    
+    # API endpoints for RAG chatbot
+    path('api/chat/', views.chatbot_api, name="chatbot_api"),
+    path('api/rag-status/', views.rag_status, name="rag_status"),
 ]

@@ -1,7 +1,7 @@
 
 from .widgets import DatePickerInput
 from django.forms import ModelForm
-from .models import UploadedImage,Chatbot
+from .models import UploadedImage, Chatbot
 from django import forms
 
 
@@ -16,9 +16,10 @@ class ChatbotForm(forms.ModelForm):
         fields = ['user_input']
         widgets = {
             'user_input': forms.Textarea(attrs={
-                'rows': 4,
+                'rows': 2,
                 'placeholder': 'Ask something about Ancient Egypt...',
                 'class': 'chat-input',  
+                'maxlength': 2000,
             })
         }
 
