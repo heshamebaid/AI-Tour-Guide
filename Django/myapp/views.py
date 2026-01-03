@@ -117,33 +117,100 @@ def chatbot_view(request):
         if form.is_valid():
             user_input = form.cleaned_data['user_input']
             
+            # Get feature toggle values from form
+            use_agent = request.POST.get('use_agent', 'true').lower() == 'true'
+            include_images = request.POST.get('include_images', 'true').lower() == 'true'
+            
             # Use the RAG service for intelligent responses
             rag_service = get_rag_service()
             
             if rag_service.is_ready():
-                # Get response from RAG pipeline with all features
-                result = rag_service.chat(
-                    user_input=user_input,
-                    use_agent=True,
-                    include_images=True
-                )
-                
-                bot_response = result.get("answer", "Sorry, I couldn't generate a response.")
-                sources = result.get("sources", [])
-                images = result.get("images", [])
-                web_info = result.get("web_info")
-                documents_found = result.get("documents_found", 0)
+                try:
+                    # Get response from RAG pipeline with selected features
+                    result = rag_service.chat(
+                        user_input=user_input,
+                        use_agent=use_agent,
+                        include_images=include_images
+                    )
+                    
+                    if result.get("success", False):
+                        bot_response = result.get("answer", "Sorry, I couldn't generate a response.")
+                        sources = result.get("sources", [])
+                        images = result.get("images", [])
+                        web_info = result.get("web_info")
+                        documents_found = result.get("documents_found", 0)
+                        
+                        response_data = {
+                            "success": True,
+                            "answer": bot_response,
+                            "sources": sources,
+                            "images": images,
+                            "web_info": web_info,
+                            "documents_found": documents_found
+                        }
+                    else:
+                        # RAG returned an error
+                        response_data = {
+                            "success": False,
+                            "error": result.get("error", "Unknown error occurred"),
+                            "answer": result.get("answer", "")
+                        }
+                        bot_response = result.get("answer", result.get("error", "Error"))
+                        sources = []
+                        images = []
+                        web_info = None
+                        documents_found = 0
+                        
+                except Exception as e:
+                    # Network or processing error
+                    response_data = {
+                        "success": False,
+                        "error": f"Network or processing error: {str(e)}"
+                    }
+                    bot_response = f"Error: {str(e)}"
+                    sources = []
+                    images = []
+                    web_info = None
+                    documents_found = 0
             else:
-                # Fallback to external API if RAG service not available
+                # RAG service not available - try fallback API
                 try:
                     api_url = "http://localhost:8080/chat"
-                    api_response = requests.post(api_url, json={"query": user_input})
+                    api_response = requests.post(api_url, json={"query": user_input}, timeout=30)
                     if api_response.ok:
                         bot_response = api_response.json().get("answer", "No answer")
+                        response_data = {
+                            "success": True,
+                            "answer": bot_response,
+                            "sources": [],
+                            "images": [],
+                            "documents_found": 0
+                        }
                     else:
-                        bot_response = f"Chatbot failed: {api_response.text}"
+                        response_data = {
+                            "success": False,
+                            "error": f"API Error: {api_response.status_code}"
+                        }
+                        bot_response = f"API Error: {api_response.text}"
+                except requests.exceptions.ConnectionError:
+                    response_data = {
+                        "success": False,
+                        "error": "Cannot connect to the AI service. Please check if the server is running."
+                    }
+                    bot_response = "Connection Error"
+                except requests.exceptions.Timeout:
+                    response_data = {
+                        "success": False,
+                        "error": "The request timed out. Please try again."
+                    }
+                    bot_response = "Timeout Error"
                 except Exception as e:
+                    response_data = {
+                        "success": False,
+                        "error": f"Error: {str(e)}"
+                    }
                     bot_response = f"Error: {e}"
+                
                 sources = []
                 images = []
                 web_info = None
@@ -157,19 +224,11 @@ def chatbot_view(request):
             chat.web_info = web_info if web_info else ""
             chat.documents_found = documents_found
             chat.save()
-            
-            response_data = {
-                "answer": bot_response,
-                "sources": sources,
-                "images": images,
-                "web_info": web_info,
-                "documents_found": documents_found
-            }
     else:
         form = ChatbotForm()
     
     # Get recent chat history
-    chat_history = Chatbot.objects.order_by('-timestamp')[:10]
+    chat_history = Chatbot.objects.order_by('-timestamp')[:20]
     
     return render(request, 'chatbot.html', {
         'form': form,
