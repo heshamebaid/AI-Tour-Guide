@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # Translation API Service
+  translation-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.translation
+    container_name: translation-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./resources:/app/resources
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Chatbot API Service
+  chatbot-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.chatbot
+    container_name: chatbot-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./Agentic_RAG:/app/Agentic_RAG
+      - ./Chatbot:/app/Chatbot
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+    depends_on:
+      - translation-api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Talk To Pharos Service
+  pharos-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.pharos
+    container_name: pharos-service
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./Agentic_RAG:/app/Agentic_RAG
+      - ./talk_to_pharos_service:/app/talk_to_pharos_service
+      - ./Agentic_RAG/src/controllers/data:/app/Agentic_RAG/src/controllers/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - PHAROS_HOST=0.0.0.0
+      - PHAROS_PORT=8050
+    depends_on:
+      - chatbot-api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Django Web Server
+  django-web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.django
+    container_name: django-web
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./Django:/app/Django
+      - ./Django/myapp/static:/app/Django/myapp/static
+      - ./Django/myapp/templates:/app/Django/myapp/templates
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PHAROS_SERVICE_URL=http://pharos-service:8050
+      - DJANGO_SETTINGS_MODULE=myproject.settings
+    depends_on:
+      - pharos-service
+      - chatbot-api
+      - translation-api
+    restart: unless-stopped
+    command: python manage.py runserver 0.0.0.0:9000
+
+networks:
+  default:
+    name: ai-tour-guide-network

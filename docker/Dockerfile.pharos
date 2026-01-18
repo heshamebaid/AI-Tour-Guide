@@ -1,0 +1,38 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies for FAISS
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY talk_to_pharos_service/requirements.txt ./talk_to_pharos_service/requirements.txt
+COPY requirements.txt .
+# Copy Agentic_RAG requirements
+RUN mkdir -p Agentic_RAG
+COPY Agentic_RAG/requirements.txt ./Agentic_RAG/requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r talk_to_pharos_service/requirements.txt && \
+    (pip install --no-cache-dir -r Agentic_RAG/requirements.txt || true)
+
+# Copy application code
+COPY talk_to_pharos_service/ ./talk_to_pharos_service/
+COPY Agentic_RAG/ ./Agentic_RAG/
+
+# Create data directory
+RUN mkdir -p Agentic_RAG/src/controllers/data
+
+EXPOSE 8050
+
+ENV PHAROS_HOST=0.0.0.0
+ENV PHAROS_PORT=8050
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
+  CMD curl -f http://localhost:8050/health || exit 1
+
+CMD ["uvicorn", "talk_to_pharos_service.app:app", "--host", "0.0.0.0", "--port", "8050"]
