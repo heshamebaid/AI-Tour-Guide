@@ -1,62 +1,69 @@
 # 🤖 Agentic RAG Tour Guide
 
-An intelligent chatbot powered by **Retrieval-Augmented Generation (RAG)** using LangChain, FAISS, and AI agents. The system combines document search, web search, and image search capabilities to provide comprehensive answers with visual context.
+An intelligent chatbot powered by **Retrieval-Augmented Generation (RAG)** using LangChain, Qdrant, and AI agents with **hybrid search capabilities**. The system combines document search, web search, and image search capabilities to provide comprehensive answers with visual context.
 
 ## ✨ Features
 
-- 📄 **Document Search** - Query your uploaded PDF documents using semantic search
+- 📄 **Hybrid Document Search** - Query documents using combined semantic (dense) and keyword (sparse/BM25) search
+- 🔍 **Advanced Retrieval** - Multiple search strategies: hybrid, dense, sparse, and MMR
 - 🌐 **Web Search** - Access current information from the internet via DuckDuckGo
 - 🖼️ **Image Search** - Find and display relevant images using SerpAPI
 - 🤖 **Smart Agent** - AI agent that automatically selects the best tools for your query
 - 💬 **Interactive Web UI** - Beautiful Django-based chat interface
 - 📊 **Admin Dashboard** - Django admin panel for chat history management
+- ⚡ **Qdrant Vector DB** - High-performance, scalable vector database
+- 🎯 **LangChain Integration** - Full LangChain framework integration for flexibility
 
 ## 🏗️ Architecture
 
 ```
-agentic_rag_tourguide/
+Agentic_RAG/
 ├── src/
 │   ├── agents/              # LangChain agents and tools
 │   │   ├── agent_graph.py   # Main agent orchestration
 │   │   └── tools/           # Document, web, and image search tools
 │   ├── services/            # Core services
-│   │   ├── llm_service.py        # LLM integration (OpenRouter)
-│   │   ├── embeddings_service.py # HuggingFace embeddings
-│   │   ├── vectorstore_service.py # FAISS vector store
-│   │   ├── retriever_service.py  # Document retrieval
-│   │   ├── memory_service.py     # Conversation memory
-│   │   ├── preprocessing.py      # Document processing
-│   │   └── indexing_service.py   # Index building
+│   │   ├── llm_service.py           # LLM integration (OpenRouter)
+│   │   ├── embeddings_service.py    # HuggingFace embeddings
+│   │   ├── vectorstore_service.py   # Qdrant vector store
+│   │   ├── sparse_encoder_service.py # BM25 sparse encoding
+│   │   ├── retriever_service.py     # Hybrid retrieval
+│   │   ├── memory_service.py        # Conversation memory
+│   │   ├── preprocessing.py         # Document processing
+│   │   └── indexing_service.py      # Index building
 │   └── core/
 │       └── config.py        # Configuration management
-├── webapp/                  # Django web application
-│   ├── chatbot/            # Chatbot Django app
-│   ├── static/             # CSS, JavaScript
-│   └── templates/          # HTML templates
 ├── data/
 │   ├── raw/                # Upload your PDFs here
-│   ├── processed/          # Processed data
-│   └── vectorstore/        # FAISS index storage
-└── manage.py               # Django management script
+│   └── processed/          # Processed data
+├── vectorstore/            # Qdrant data and BM25 model
+├── example_qdrant_usage.py # Example scripts
+└── QDRANT_SETUP.md        # Detailed setup guide
 
 ```
 
 ## 🚀 Quick Start
 
-### 1. Installation
+### 1. Start Qdrant Database
+
+**Using Docker (Recommended):**
+```bash
+docker run -p 6333:6333 -p 6334:6334 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant
+```
+
+### 2. Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/EyadAmgad/agentic_rag_tourguide.git
-cd agentic_rag_tourguide
+# Navigate to Agentic_RAG directory
+cd Agentic_RAG
 
 # Install Python dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Configuration
+### 3. Configuration
 
-Create a `.env` file in the project root:
+Create a `.env` file in the Agentic_RAG directory:
 
 ```env
 # LLM Configuration
@@ -68,35 +75,33 @@ SERPAPI_API_KEY=your_serpapi_key
 
 # Embeddings
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+
+# Qdrant Configuration
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION_NAME=tour_guide_documents
+
+# Hybrid Search Settings
+ENABLE_HYBRID_SEARCH=true
+DENSE_WEIGHT=0.5
+SPARSE_WEIGHT=0.5
 ```
 
-### 3. Prepare Your Documents
+### 4. Prepare Your Documents
 
 ```bash
-# Add PDF files to data/raw folder
+# Add PDF or TXT files to data/raw folder
 cp your_documents.pdf data/raw/
 
-# Build the vector store index using Django shell
-python manage.py shell
+# Build the Qdrant vector store index
+python example_qdrant_usage.py
+# Select option 1 to build index
 ```
 
-Then in the Django shell:
+Or programmatically:
 ```python
 from services.indexing_service import IndexingService
 indexing_service = IndexingService()
 indexing_service.build_index()
-```
-
-### 4. Run the Web Application
-
-```bash
-# Run migrations
-python manage.py migrate
-
-# Start the server
-python manage.py runserver
-
-# Open browser at http://localhost:8000
 ```
 
 ## 📖 Usage

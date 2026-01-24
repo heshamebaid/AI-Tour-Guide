@@ -94,7 +94,7 @@ def test_retrieval():
         
         # Test query
         test_query = "Tell me about ancient Egypt"
-        docs = retriever.get_relevant_documents(test_query)
+        docs = retriever.invoke(test_query)
         
         print(f"   ✓ Retriever loaded successfully")
         print(f"   ✓ Query: '{test_query}'")
@@ -157,7 +157,7 @@ def test_full_rag_query():
         print("   Retrieving relevant documents...")
         
         # Retrieve documents
-        docs = retriever.get_relevant_documents(query)
+        docs = retriever.invoke(query)
         context = "\n\n".join([doc.page_content for doc in docs])
         
         print(f"   ✓ Retrieved {len(docs)} documents")

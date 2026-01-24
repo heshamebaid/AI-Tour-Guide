@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
-# Disable tokenizers parallelism warning
+# CRITICAL: Disable CUDA and set environment BEFORE any torch imports
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Disable CUDA completely
 
 # Add Agentic_RAG to Python path
 AGENTIC_RAG_PATH = Path(__file__).resolve().parent.parent.parent / "Agentic_RAG"
@@ -29,56 +31,147 @@ class RAGService:
     Provides document search, web search, image search, and conversational agent.
     """
     
-    _instance = None
-    _initialized = False
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-    
     def __init__(self):
-        if RAGService._initialized:
-            return
-        
         self.retriever = None
-        self.llm = None
+        self.llm_service = None  # Store service, not LLM object
         self.agent = None
         self.memory = None
+        self.retriever_service = None
         self._init_error = None
+        self._initialized = False
         
         try:
             self._initialize_services()
-            RAGService._initialized = True
+            self._initialized = True
         except Exception as e:
             self._init_error = str(e)
             print(f"RAG Service initialization error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def __getstate__(self):
+        """Custom pickle serialization - exclude unpicklable objects."""
+        state = self.__dict__.copy()
+        # Don't pickle LangChain objects that have classmethods
+        state['retriever'] = None
+        state['agent'] = None
+        state['memory'] = None
+        return state
+    
+    def __setstate__(self, state):
+        """Custom pickle deserialization - restore state."""
+        self.__dict__.update(state)
+        # Services will be reinitialized on first use if needed
+    
+    @property
+    def llm(self):
+        """Lazy access to LLM to avoid pickle issues."""
+        if self.llm_service is not None:
+            return self.llm_service.llm
+        return None
     
     def _initialize_services(self):
         """Initialize all RAG services."""
-        from services.retriever_service import RetrieverService
-        from services.llm_service import LLMService
-        from services.memory_service import MemoryService
-        
-        # Initialize core services
-        self.retriever = RetrieverService().get_retriever(k=5)
-        self.llm = LLMService().llm
-        self.memory = MemoryService().memory
-        
-        print("✓ RAG Service initialized successfully")
+        try:
+            # Set environment variables to help with model loading
+            import os
+            os.environ['TRANSFORMERS_OFFLINE'] = '0'
+            os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
+            
+            from services.retriever_service import RetrieverService
+            
+            # Initialize retriever with hybrid search (LLM optional)
+            print("Initializing retriever service...")
+            retriever_service = RetrieverService()
+            print("Getting retriever with hybrid search...")
+            self.retriever = retriever_service.get_retriever(k=5, search_type="hybrid")
+            self.retriever_service = retriever_service
+            
+            print("✓ RAG Retriever initialized with Qdrant + Hybrid Search")
+            
+            # Try to initialize LLM (optional - will fail gracefully if not configured)
+            try:
+                from services.llm_service import LLMService
+                self.llm_service = LLMService()
+                print("✓ LLM Service initialized (lazy loading)")
+            except Exception as llm_error:
+                print(f"⚠️  LLM Service not available: {llm_error}")
+                print("   Continuing in document-only mode (retrieval still works)")
+                self.llm_service = None
+            
+            # Try to initialize memory (optional)
+            try:
+                from services.memory_service import MemoryService
+                self.memory = MemoryService().memory
+                print("✓ Memory Service initialized")
+            except Exception as mem_error:
+                print(f"⚠️  Memory Service not available: {mem_error}")
+                self.memory = None
+                
+        except Exception as e:
+            print(f"❌ Critical error initializing RAG services: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     def is_ready(self) -> bool:
-        """Check if RAG service is ready."""
-        return RAGService._initialized and self._init_error is None
+        """Check if RAG service is ready (at least retriever must work)."""
+        return self._initialized and self.retriever is not None
     
     def get_status(self) -> Dict[str, Any]:
         """Get service status information."""
-        return {
-            "initialized": RAGService._initialized,
+        status = {
+            "initialized": self._initialized,
             "error": self._init_error,
             "has_retriever": self.retriever is not None,
             "has_llm": self.llm is not None,
+            "vector_db": "Qdrant with Hybrid Search"
         }
+        
+        # Get Qdrant collection info
+        if self.retriever is not None:
+            try:
+                from services.vectorstore_service import VectorStoreService
+                vs_service = VectorStoreService()
+                info = vs_service.get_collection_info()
+                status["collection_info"] = {
+                    "exists": info.get("exists"),
+                    "name": info.get("name"),
+                    "documents": info.get("points_count", 0),
+                    "hybrid_search": info.get("hybrid_search_enabled", False)
+                }
+            except Exception as e:
+                status["collection_info"] = {"error": str(e)}
+        
+        return status
+    
+    def set_search_type(self, search_type: str = "hybrid", k: int = 5) -> Dict[str, Any]:
+        """
+        Switch between different search types.
+        
+        Args:
+            search_type: "hybrid", "dense", "sparse", or "mmr"
+            k: Number of documents to retrieve
+            
+        Returns:
+            Status dictionary
+        """
+        if not self.is_ready():
+            return {"success": False, "error": "Service not initialized"}
+        
+        try:
+            if search_type == "mmr":
+                self.retriever = self.retriever_service.get_mmr_retriever(k=k)
+            else:
+                self.retriever = self.retriever_service.get_retriever(k=k, search_type=search_type)
+            
+            return {
+                "success": True,
+                "search_type": search_type,
+                "k": k
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     def document_search(self, query: str, k: int = 5) -> Dict[str, Any]:
         """
@@ -95,7 +188,7 @@ class RAGService:
             return {"success": False, "error": self._init_error or "Service not initialized"}
         
         try:
-            docs = self.retriever.get_relevant_documents(query)
+            docs = self.retriever.invoke(query)
             
             results = []
             for i, doc in enumerate(docs):
@@ -208,7 +301,7 @@ class RAGService:
             }
         
         try:
-            # Step 1: Search documents
+            # Step 1: Search documents using hybrid search
             doc_results = self.document_search(user_input, k=5)
             
             # Step 2: Build context from documents
@@ -219,26 +312,52 @@ class RAGService:
                     context += doc["content"] + "\n\n"
                     sources.append(doc["preview"])
             
-            # Step 3: Generate response using LLM
-            prompt = self._build_prompt(user_input, context)
-            response = self.llm.invoke(prompt)
-            answer = response.content
+            # Step 3: Generate response using LLM (with fallback if LLM not available)
+            if self.llm is not None:
+                try:
+                    prompt = self._build_prompt(user_input, context)
+                    response = self.llm.invoke(prompt)
+                    answer = response.content
+                except Exception as llm_error:
+                    # LLM failed - provide document excerpts as fallback
+                    if sources:
+                        answer = f"**Retrieved from documents (LLM error):**\n\n"
+                        for i, source in enumerate(sources[:3], 1):
+                            answer += f"{i}. {source}\n\n"
+                        answer += f"\n*Note: LLM service error: {str(llm_error)}. Showing document excerpts using Qdrant hybrid search.*"
+                    else:
+                        raise
+            else:
+                # No LLM available - use document excerpts directly
+                if sources:
+                    answer = f"**Found in documents using Qdrant Hybrid Search:**\n\n"
+                    for i, source in enumerate(sources[:3], 1):
+                        answer += f"**{i}.** {source}\n\n"
+                    answer += f"\n*Note: LLM service not configured. Configure OPENROUTER_API_KEY for AI-generated answers.*"
+                else:
+                    answer = "No relevant documents found for your query. Please try rephrasing or check if the index is built."
             
             # Step 4: Optionally search for relevant images
             images = []
             if include_images:
-                # Create an image search query based on user input
-                image_query = f"Ancient Egypt {user_input}"
-                image_results = self.image_search(image_query)
-                if image_results["success"]:
-                    images = image_results["images"][:3]  # Limit to 3 images
+                try:
+                    # Create an image search query based on user input
+                    image_query = f"Ancient Egypt {user_input}"
+                    image_results = self.image_search(image_query)
+                    if image_results["success"]:
+                        images = image_results["images"][:3]  # Limit to 3 images
+                except:
+                    pass  # Image search is optional
             
             # Step 5: Optionally enhance with web search if documents lack info
             web_info = None
             if use_agent and len(sources) < 2:
-                web_results = self.web_search(user_input)
-                if web_results["success"]:
-                    web_info = web_results["results"]
+                try:
+                    web_results = self.web_search(user_input)
+                    if web_results["success"]:
+                        web_info = web_results["results"]
+                except:
+                    pass  # Web search is optional
             
             return {
                 "success": True,
@@ -250,10 +369,11 @@ class RAGService:
             }
             
         except Exception as e:
+            error_msg = f"An error occurred: {str(e)}\n\nPlease ensure:\n- Qdrant is running (docker run -p 6333:6333 qdrant/qdrant)\n- Collection is built (cd Agentic_RAG && python manage_qdrant.py build)"
             return {
                 "success": False,
                 "error": str(e),
-                "answer": f"An error occurred while processing your request: {str(e)}"
+                "answer": error_msg
             }
     
     def _build_prompt(self, question: str, context: str) -> str:

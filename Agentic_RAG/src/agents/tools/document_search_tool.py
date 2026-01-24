@@ -5,11 +5,12 @@ from services.retriever_service import RetrieverService
 _retriever_service = None
 
 def get_retriever():
-    """Get or initialize the retriever service."""
+    """Get or initialize the retriever service with hybrid search."""
     global _retriever_service
     if _retriever_service is None:
         _retriever_service = RetrieverService()
-    return _retriever_service.get_retriever()
+    # Use hybrid search by default for better results
+    return _retriever_service.get_retriever(search_type="hybrid")
 
 @tool
 def document_search(query: str) -> str:
@@ -25,7 +26,7 @@ def document_search(query: str) -> str:
     """
     try:
         retriever = get_retriever()
-        docs = retriever.get_relevant_documents(query)
+        docs = retriever.invoke(query)
         
         if not docs:
             return "No relevant documents found in the knowledge base."

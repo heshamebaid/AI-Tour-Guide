@@ -187,17 +187,21 @@ def chatbot_view(request):
                             "documents_found": 0
                         }
                     else:
+                        error_msg = f"API Error {api_response.status_code}: The LLM service is unavailable. Please check your OPENROUTER_API_KEY configuration."
                         response_data = {
                             "success": False,
-                            "error": f"API Error: {api_response.status_code}"
+                            "error": error_msg,
+                            "answer": error_msg
                         }
-                        bot_response = f"API Error: {api_response.text}"
+                        bot_response = error_msg
                 except requests.exceptions.ConnectionError:
+                    error_msg = "Cannot connect to the AI service. Please check if the server is running."
                     response_data = {
                         "success": False,
-                        "error": "Cannot connect to the AI service. Please check if the server is running."
+                        "error": error_msg,
+                        "answer": error_msg
                     }
-                    bot_response = "Connection Error"
+                    bot_response = error_msg
                 except requests.exceptions.Timeout:
                     response_data = {
                         "success": False,
