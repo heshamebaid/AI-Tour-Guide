@@ -6,7 +6,7 @@ from typing import List, Optional
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from services.embeddings_service import EmbeddingService
 from services.sparse_encoder_service import SparseEncoderService

@@ -22,6 +22,11 @@ class Config:
     DENSE_WEIGHT = float(os.getenv("DENSE_WEIGHT", "0.5"))  # Weight for semantic search
     SPARSE_WEIGHT = float(os.getenv("SPARSE_WEIGHT", "0.5"))  # Weight for keyword search
     
+    # Reranker Settings
+    ENABLE_RERANKER = os.getenv("ENABLE_RERANKER", "true").lower() == "true"
+    RERANKER_MODEL = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+    RERANKER_INITIAL_K = int(os.getenv("RERANKER_INITIAL_K", "20"))
+    
     # Use absolute paths
     VECTORSTORE_PATH = os.getenv("VECTORSTORE_PATH") or str(PROJECT_ROOT / "vectorstore")
     

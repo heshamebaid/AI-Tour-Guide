@@ -5,7 +5,7 @@ Provides document search, web search, image search, and full agent capabilities.
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Generator
 from dotenv import load_dotenv
 
 # CRITICAL: Disable CUDA and set environment BEFORE any torch imports
@@ -37,6 +37,7 @@ class RAGService:
         self.agent = None
         self.memory = None
         self.retriever_service = None
+        self.query_rewriter = None  # Query rewriter for optimized retrieval
         self._init_error = None
         self._initialized = False
         
@@ -79,6 +80,12 @@ class RAGService:
             os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
             
             from services.retriever_service import RetrieverService
+            from services.query_rewriter_service import QueryRewriterService
+            
+            # Initialize query rewriter for optimized retrieval
+            print("Initializing query rewriter service...")
+            self.query_rewriter = QueryRewriterService()
+            print("✓ Query Rewriter initialized")
             
             # Initialize retriever with hybrid search (LLM optional)
             print("Initializing retriever service...")
@@ -176,6 +183,7 @@ class RAGService:
     def document_search(self, query: str, k: int = 5) -> Dict[str, Any]:
         """
         Search documents in the vector store.
+        Uses query rewriter for optimized retrieval.
         
         Args:
             query: Search query
@@ -188,7 +196,14 @@ class RAGService:
             return {"success": False, "error": self._init_error or "Service not initialized"}
         
         try:
-            docs = self.retriever.invoke(query)
+            # Stage 1: Rewrite query for optimal retrieval
+            optimized_query = query
+            if self.query_rewriter:
+                optimized_query = self.query_rewriter.rewrite_for_retrieval(query)
+                print(f"Query rewriting: '{query}' → '{optimized_query}'")
+            
+            # Search with optimized query
+            docs = self.retriever.invoke(optimized_query)
             
             results = []
             for i, doc in enumerate(docs):
@@ -406,6 +421,102 @@ Please provide a detailed, informative answer:"""
         except Exception as e:
             print(f"Error creating agent: {e}")
             return None
+    
+    def chat_streaming(self, user_input: str, include_images: bool = True, search_web: bool = False) -> Generator[Dict[str, Any], None, None]:
+        """
+        Process a chat message with streaming response.
+        Uses two-stage query rewriting for optimal retrieval and response quality.
+        
+        Args:
+            user_input: User's message/question
+            include_images: Whether to search for relevant images
+            search_web: Whether to search the web for additional context
+            
+        Yields:
+            Dictionary chunks with type and content
+        """
+        if not self.is_ready():
+            yield {"type": "error", "content": self._init_error or "Service not initialized"}
+            return
+        
+        try:
+            # Step 1: Search documents using hybrid search (with query rewriting in document_search)
+            doc_results = self.document_search(user_input, k=5)
+            
+            # Step 2: Build context from documents
+            context_parts = []
+            sources = []
+            if doc_results["success"] and doc_results["documents"]:
+                for doc in doc_results["documents"]:
+                    context_parts.append(doc["content"])
+                    sources.append(doc["preview"])
+            
+            # Step 2.5: Optionally add web search context
+            if search_web and context_parts:
+                try:
+                    web_results = self.web_search(user_input)
+                    if web_results.get("success") and web_results.get("results"):
+                        context_parts.append(f"Web Search Results:\n{web_results['results']}")
+                except:
+                    pass  # Web search is optional
+            
+            # Step 3: Use Stage 2 query rewriting to create conversational prompt
+            if self.query_rewriter and context_parts:
+                prompt = self.query_rewriter.rewrite_for_response(
+                    user_query=user_input,
+                    retrieved_context=context_parts,
+                    language="en"  # Could be detected from user_input
+                )
+            else:
+                # Fallback to old prompt building
+                context = "\n\n".join(context_parts)
+                prompt = self._build_prompt(user_input, context)
+            
+            # Step 4: Generate streaming response using LLM
+            if self.llm is not None and hasattr(self.llm, 'stream'):
+                try:
+                    for token in self.llm.stream(prompt):
+                        yield {"type": "token", "content": token}
+                except Exception as llm_error:
+                    # LLM failed - yield document excerpts
+                    if sources:
+                        answer = f"**Retrieved from documents (LLM error):**\n\n"
+                        for i, source in enumerate(sources[:3], 1):
+                            answer += f"{i}. {source}\n\n"
+                        yield {"type": "token", "content": answer}
+                    else:
+                        yield {"type": "error", "content": str(llm_error)}
+                        return
+            elif self.llm is not None:
+                # Fallback to non-streaming
+                response = self.llm.invoke(prompt)
+                yield {"type": "token", "content": response.content}
+            else:
+                # No LLM - use document excerpts
+                if sources:
+                    answer = f"**Found in documents using Qdrant Hybrid Search:**\n\n"
+                    for i, source in enumerate(sources[:3], 1):
+                        answer += f"**{i}.** {source}\n\n"
+                    yield {"type": "token", "content": answer}
+                else:
+                    yield {"type": "token", "content": "No relevant documents found."}
+            
+            # Step 5: Optionally search for relevant images
+            images = []
+            if include_images:
+                try:
+                    image_query = f"Ancient Egypt {user_input}"
+                    image_results = self.image_search(image_query)
+                    if image_results["success"]:
+                        images = image_results["images"][:3]
+                except:
+                    pass
+            
+            yield {"type": "images", "content": images}
+            yield {"type": "done", "content": ""}
+            
+        except Exception as e:
+            yield {"type": "error", "content": str(e)}
     
     def chat_with_agent(self, user_input: str) -> Dict[str, Any]:
         """

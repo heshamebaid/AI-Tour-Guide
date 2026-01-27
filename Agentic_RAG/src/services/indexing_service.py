@@ -3,7 +3,7 @@ Indexing Service - Build and manage Qdrant vector store indexes with hybrid sear
 """
 import os
 from typing import List, Optional
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from services.preprocessing import DocumentPreprocessor
 from services.vectorstore_service import VectorStoreService

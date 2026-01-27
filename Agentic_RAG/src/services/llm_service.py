@@ -1,5 +1,7 @@
 import os
+import json
 import requests
+from typing import Generator
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -42,6 +44,47 @@ class SimpleLLM:
             return SimpleResponse(content)
         else:
             raise Exception(f"LLM API error: {response.status_code} - {response.text}")
+    
+    def stream(self, prompt: str) -> Generator[str, None, None]:
+        """Stream the LLM response token by token."""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+            "max_tokens": 2000,
+            "stream": True
+        }
+        
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=60,
+            stream=True
+        )
+        
+        if not response.ok:
+            raise Exception(f"LLM API error: {response.status_code} - {response.text}")
+        
+        for line in response.iter_lines():
+            if line:
+                line_text = line.decode('utf-8')
+                if line_text.startswith('data: '):
+                    json_str = line_text[6:]
+                    if json_str.strip() == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(json_str)
+                        if 'choices' in chunk and len(chunk['choices']) > 0:
+                            delta = chunk['choices'][0].get('delta', {})
+                            if 'content' in delta:
+                                yield delta['content']
+                    except json.JSONDecodeError:
+                        continue
 
 
 class SimpleResponse:
