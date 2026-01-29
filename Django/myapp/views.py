@@ -4,7 +4,7 @@ import json
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.shortcuts import redirect, render
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from .forms import ChatbotForm, ImageUploadForm
@@ -187,17 +187,21 @@ def chatbot_view(request):
                             "documents_found": 0
                         }
                     else:
+                        error_msg = f"API Error {api_response.status_code}: The LLM service is unavailable. Please check your OPENROUTER_API_KEY configuration."
                         response_data = {
                             "success": False,
-                            "error": f"API Error: {api_response.status_code}"
+                            "error": error_msg,
+                            "answer": error_msg
                         }
-                        bot_response = f"API Error: {api_response.text}"
+                        bot_response = error_msg
                 except requests.exceptions.ConnectionError:
+                    error_msg = "Cannot connect to the AI service. Please check if the server is running."
                     response_data = {
                         "success": False,
-                        "error": "Cannot connect to the AI service. Please check if the server is running."
+                        "error": error_msg,
+                        "answer": error_msg
                     }
-                    bot_response = "Connection Error"
+                    bot_response = error_msg
                 except requests.exceptions.Timeout:
                     response_data = {
                         "success": False,
@@ -291,6 +295,91 @@ def rag_status(request):
     """Check RAG service status."""
     rag_service = get_rag_service()
     return JsonResponse(rag_service.get_status())
+
+
+def chatbot_new(request):
+    """New ChatGPT-style streaming chat interface."""
+    return render(request, 'chatbot_new.html')
+
+
+@csrf_exempt
+def chatbot_stream(request):
+    """
+    Streaming endpoint for chatbot - Server-Sent Events (SSE).
+    Streams LLM response token by token with query rewriting optimization.
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        message = data.get("message", "")
+        include_images = data.get("include_images", True)
+        search_web = data.get("search_web", False)
+    except json.JSONDecodeError:
+        message = request.POST.get("message", "")
+        include_images = True
+        search_web = False
+    
+    if not message:
+        return JsonResponse({"error": "No message provided"}, status=400)
+    
+    rag_service = get_rag_service()
+    
+    if not rag_service.is_ready():
+        return JsonResponse({
+            "error": "RAG service not available",
+            "status": rag_service.get_status()
+        }, status=503)
+    
+    def event_stream():
+        """Generate SSE events from RAG streaming response."""
+        full_response = ""
+        sources = []
+        images = []
+        
+        try:
+            for chunk in rag_service.chat_streaming(message, include_images=include_images, search_web=search_web):
+                chunk_type = chunk.get("type", "")
+                content = chunk.get("content", "")
+                
+                if chunk_type == "token":
+                    full_response += content
+                    yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                elif chunk_type == "sources":
+                    sources = content
+                    yield f"data: {json.dumps({'type': 'sources', 'content': content})}\n\n"
+                elif chunk_type == "images":
+                    images = content
+                    yield f"data: {json.dumps({'type': 'images', 'content': content})}\n\n"
+                elif chunk_type == "done":
+                    yield f"data: {json.dumps({'type': 'done', 'content': ''})}\n\n"
+                elif chunk_type == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'content': content})}\n\n"
+            
+            # Save to database after streaming completes
+            try:
+                chat = Chatbot(
+                    user_input=message,
+                    bot_response=full_response,
+                    documents_found=len(sources)
+                )
+                chat.set_sources(sources)
+                chat.set_images(images)
+                chat.save()
+            except Exception as save_error:
+                print(f"Error saving chat: {save_error}")
+                
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+    
+    response = StreamingHttpResponse(
+        event_stream(),
+        content_type='text/event-stream'
+    )
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'  # Disable nginx buffering
+    return response
 
 
 def talk_to_pharos_view(request):

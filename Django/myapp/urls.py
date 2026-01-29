@@ -7,6 +7,8 @@ urlpatterns=[
     path('home/',views.home,name="home"),
     path('translator/',views.upload_image,name="translator"),
     path('chatbot/',views.chatbot_view,name="chatbot"),
+    path('chatbot/new/', views.chatbot_new, name="chatbot_new"),
+    path('chatbot/stream/', views.chatbot_stream, name="chatbot_stream"),
     path('talk-to-pharos/', views.talk_to_pharos_view, name="talk_to_pharos"),
     
     # API endpoints for RAG chatbot

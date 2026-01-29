@@ -1,9 +1,9 @@
 """
-Indexing Service - Build and manage vector store indexes.
+Indexing Service - Build and manage Qdrant vector store indexes with hybrid search.
 """
 import os
 from typing import List, Optional
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from services.preprocessing import DocumentPreprocessor
 from services.vectorstore_service import VectorStoreService
@@ -11,8 +11,8 @@ from services.vectorstore_service import VectorStoreService
 
 class IndexingService:
     """
-    Service for building and managing FAISS vector store indexes.
-    Handles document preprocessing and index creation.
+    Service for building and managing Qdrant vector store indexes.
+    Handles document preprocessing and index creation with hybrid search support.
     """
     
     def __init__(self):
@@ -21,7 +21,7 @@ class IndexingService:
     
     def build_index(self, verbose: bool = True) -> bool:
         """
-        Build the FAISS vector store index from documents.
+        Build the Qdrant vector store index from documents.
         
         Args:
             verbose: Whether to print progress messages
@@ -32,7 +32,7 @@ class IndexingService:
         try:
             if verbose:
                 print("=" * 60)
-                print("Building FAISS Vector Store Index")
+                print("Building Qdrant Vector Store Index with Hybrid Search")
                 print("=" * 60)
             
             # Step 1: Load and preprocess documents
@@ -50,14 +50,17 @@ class IndexingService:
             if verbose:
                 print(f"✓ Created {len(chunks)} document chunks")
             
-            # Step 2: Build vector store
+            # Step 2: Build Qdrant vector store
             if verbose:
-                print("\n[2/2] Building FAISS vector store...")
+                print("\n[2/2] Building Qdrant vector store...")
             
             vectorstore = self.vectorstore_service.build_vectorstore(chunks)
             
             if verbose:
-                print(f"✓ Vector store saved to: {self.vectorstore_service.index_path}")
+                info = self.vectorstore_service.get_collection_info()
+                print(f"✓ Qdrant collection created: {info['name']}")
+                print(f"✓ Documents indexed: {info.get('points_count', len(chunks))}")
+                print(f"✓ Hybrid search enabled: {info.get('hybrid_search_enabled', False)}")
                 print("\n" + "=" * 60)
                 print("✓ Index built successfully!")
                 print("=" * 60 + "\n")
@@ -71,7 +74,7 @@ class IndexingService:
     
     def rebuild_index(self, verbose: bool = True) -> bool:
         """
-        Rebuild the vector store index (deletes existing index first).
+        Rebuild the vector store index (deletes existing collection first).
         
         Args:
             verbose: Whether to print progress messages
@@ -80,13 +83,12 @@ class IndexingService:
             bool: True if successful, False otherwise
         """
         try:
-            # Remove existing index if it exists
-            index_path = self.vectorstore_service.index_path
-            if os.path.exists(index_path):
+            # Remove existing collection if it exists
+            info = self.vectorstore_service.get_collection_info()
+            if info.get('exists'):
                 if verbose:
-                    print(f"Removing existing index at: {index_path}")
-                import shutil
-                shutil.rmtree(index_path)
+                    print(f"Removing existing collection: {info['name']}")
+                self.vectorstore_service.delete_collection()
             
             return self.build_index(verbose=verbose)
             
@@ -97,33 +99,9 @@ class IndexingService:
     
     def get_index_info(self) -> dict:
         """
-        Get information about the current index.
+        Get information about the current Qdrant collection.
         
         Returns:
-            dict: Index information including path, exists, and file sizes
+            dict: Collection information including status and document count
         """
-        index_path = self.vectorstore_service.index_path
-        
-        info = {
-            'path': index_path,
-            'exists': os.path.exists(index_path),
-            'files': []
-        }
-        
-        if info['exists']:
-            index_file = os.path.join(index_path, 'index.faiss')
-            pkl_file = os.path.join(index_path, 'index.pkl')
-            
-            if os.path.exists(index_file):
-                info['files'].append({
-                    'name': 'index.faiss',
-                    'size': os.path.getsize(index_file)
-                })
-            
-            if os.path.exists(pkl_file):
-                info['files'].append({
-                    'name': 'index.pkl',
-                    'size': os.path.getsize(pkl_file)
-                })
-        
-        return info
+        return self.vectorstore_service.get_collection_info()
