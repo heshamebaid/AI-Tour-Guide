@@ -38,6 +38,7 @@ class RAGService:
         self.memory = None
         self.retriever_service = None
         self.query_rewriter = None  # Query rewriter for optimized retrieval
+        self.reranker = None  # Reranker for top-k selection
         self._init_error = None
         self._initialized = False
         
@@ -81,22 +82,9 @@ class RAGService:
             
             from services.retriever_service import RetrieverService
             from services.query_rewriter_service import QueryRewriterService
+            from services.reranker_service import RerankerService
             
-            # Initialize query rewriter for optimized retrieval
-            print("Initializing query rewriter service...")
-            self.query_rewriter = QueryRewriterService()
-            print("✓ Query Rewriter initialized")
-            
-            # Initialize retriever with hybrid search (LLM optional)
-            print("Initializing retriever service...")
-            retriever_service = RetrieverService()
-            print("Getting retriever with hybrid search...")
-            self.retriever = retriever_service.get_retriever(k=5, search_type="hybrid")
-            self.retriever_service = retriever_service
-            
-            print("✓ RAG Retriever initialized with Qdrant + Hybrid Search")
-            
-            # Try to initialize LLM (optional - will fail gracefully if not configured)
+            # Try to initialize LLM first (needed for query rewriter)
             try:
                 from services.llm_service import LLMService
                 self.llm_service = LLMService()
@@ -105,6 +93,27 @@ class RAGService:
                 print(f"⚠️  LLM Service not available: {llm_error}")
                 print("   Continuing in document-only mode (retrieval still works)")
                 self.llm_service = None
+            
+            # Initialize query rewriter with LLM for intelligent rewriting
+            print("Initializing query rewriter service...")
+            self.query_rewriter = QueryRewriterService(llm_client=self.llm if self.llm_service else None)
+            if self.llm_service:
+                print("✓ Query Rewriter initialized with LLM-based rewriting")
+            else:
+                print("✓ Query Rewriter initialized with rule-based rewriting")
+            
+            # Initialize retriever with hybrid search
+            print("Initializing retriever service...")
+            retriever_service = RetrieverService()
+            print("Getting retriever with hybrid search...")
+            self.retriever = retriever_service.get_retriever(k=25, search_type="hybrid")  # Top 25 for reranking
+            self.retriever_service = retriever_service
+            print("✓ RAG Retriever initialized with Qdrant + Hybrid Search (top-25)")
+            
+            # Initialize reranker for top-k selection
+            print("Initializing reranker service...")
+            self.reranker = RerankerService()
+            print("✓ Reranker initialized")
             
             # Try to initialize memory (optional)
             try:
@@ -394,8 +403,22 @@ class RAGService:
     def _build_prompt(self, question: str, context: str) -> str:
         """Build prompt for LLM with context."""
         return f"""You are a knowledgeable tour guide specializing in Ancient Egyptian history, culture, and archaeology. 
-Answer the user's question based on the provided context. If the context doesn't contain relevant information, 
-use your knowledge to provide a helpful answer. Be informative, engaging, and educational.
+
+**IMPORTANT SCOPE GUIDELINES:**
+- You are an expert ONLY in Ancient Egypt (pharaohs, pyramids, temples, hieroglyphs, mummies, gods, dynasties, archaeology, culture, daily life, etc.)
+- If the question is about Ancient Egypt: Answer it enthusiastically with the provided context or your knowledge
+- If the question is NOT about Ancient Egypt (modern topics, other civilizations, unrelated subjects): Politely explain that you specialize in Ancient Egypt and offer your services
+
+**Example out-of-scope response:**
+"I appreciate your question, but I specialize exclusively in Ancient Egyptian history and culture. I'd be happy to help you explore topics like:
+- Pharaohs and their dynasties
+- Pyramids and ancient monuments
+- Gods and religious beliefs
+- Hieroglyphs and ancient writing
+- Daily life in ancient Egypt
+- Archaeological discoveries
+
+What would you like to know about Ancient Egypt?"
 
 Context from documents:
 {context[:4000] if context else "No specific documents found."}
@@ -404,6 +427,119 @@ User Question: {question}
 
 Please provide a detailed, informative answer:"""
 
+    def _check_query_scope(self, query: str) -> tuple[bool, str]:
+        """
+        Check if the query is relevant to Ancient Egypt BEFORE doing any retrieval.
+        
+        Args:
+            query: User's question
+            
+        Returns:
+            Tuple of (is_relevant: bool, rewritten_query: str or rejection_message: str)
+        """
+        if not self.llm:
+            # No LLM available, assume relevant
+            return True, query
+        
+        scope_check_prompt = f"""You are a scope checker for an Ancient Egypt chatbot.
+
+User Question: "{query}"
+
+Task: Determine if this question is about Ancient Egypt topics such as:
+- Pharaohs, kings, queens, rulers
+- Pyramids, temples, monuments, tombs
+- Gods, goddesses, mythology, religion
+- Hieroglyphs, papyrus, writing systems
+- Mummies, burial practices, afterlife beliefs
+- Daily life, culture, society in Ancient Egypt
+- Archaeology, discoveries, excavations
+- Ancient Egyptian history, dynasties, time periods
+- Nile River, geography of Ancient Egypt
+- Art, architecture, engineering of Ancient Egypt
+
+Answer with ONLY:
+- "YES" if the question is about Ancient Egypt
+- "NO" if it's about something else (modern topics, other civilizations, unrelated subjects)
+
+Answer:"""
+
+        try:
+            response = self.llm.invoke(scope_check_prompt)
+            answer = response.content.strip().upper() if hasattr(response, 'content') else str(response).strip().upper()
+            
+            is_in_scope = "YES" in answer
+            
+            if is_in_scope:
+                print(f"✓ Query is in scope: '{query}'")
+                # Rewrite query for retrieval if we have query rewriter
+                if self.query_rewriter:
+                    rewritten = self.query_rewriter.rewrite_for_retrieval(query)
+                    return True, rewritten
+                return True, query
+            else:
+                print(f"✗ Query out of scope: '{query}'")
+                rejection_message = """I appreciate your question, but I specialize exclusively in Ancient Egyptian history and culture. 
+
+I'd be delighted to help you explore topics such as:
+• **Pharaohs and Dynasties** - Learn about Tutankhamun, Ramses II, Cleopatra, and other rulers
+• **Pyramids and Monuments** - Discover how these incredible structures were built
+• **Gods and Mythology** - Explore the fascinating world of Egyptian deities like Ra, Osiris, and Isis
+• **Hieroglyphs and Writing** - Understand ancient Egyptian script and language
+• **Daily Life and Culture** - See how ancient Egyptians lived, worked, and celebrated
+• **Mummies and the Afterlife** - Learn about burial practices and beliefs about the afterlife
+
+What would you like to know about Ancient Egypt? 🏛️"""
+                return False, rejection_message
+                
+        except Exception as e:
+            print(f"Scope check failed: {e}")
+            # On error, assume in scope to avoid blocking legitimate questions
+            return True, query
+
+    def _check_context_relevance(self, query: str, context: str) -> bool:
+        """
+        Use LLM to check if retrieved context is relevant to the query.
+        
+        Args:
+            query: User's question
+            context: Retrieved context from documents
+            
+        Returns:
+            True if context is relevant, False otherwise
+        """
+        if not self.llm or not context:
+            return False
+        
+        relevance_prompt = f"""You are a relevance checker for a question-answering system about Ancient Egypt.
+
+User Question: {query}
+
+Retrieved Context: {context[:1000]}
+
+Task: Determine if BOTH of these conditions are true:
+1. The user's question is about Ancient Egypt (pharaohs, pyramids, gods, culture, archaeology, hieroglyphs, etc.)
+2. The retrieved context contains information that can help answer the question
+
+Answer with ONLY "YES" if BOTH conditions are met, or "NO" if either:
+- The question is NOT about Ancient Egypt (e.g., modern topics, other civilizations, unrelated subjects)
+- The context doesn't help answer the question
+
+Answer:"""
+
+        try:
+            response = self.llm.invoke(relevance_prompt)
+            answer = response.content.strip().upper() if hasattr(response, 'content') else str(response).strip().upper()
+            
+            # Check if answer contains YES
+            is_relevant = "YES" in answer
+            print(f"Relevance check: {'RELEVANT' if is_relevant else 'NOT RELEVANT'}")
+            return is_relevant
+            
+        except Exception as e:
+            print(f"Relevance check failed: {e}")
+            # On error, assume context is relevant to avoid unnecessary web searches
+            return True
+    
     def get_agent(self):
         """
         Get the full conversational agent with all tools.
@@ -424,13 +560,19 @@ Please provide a detailed, informative answer:"""
     
     def chat_streaming(self, user_input: str, include_images: bool = True, search_web: bool = False) -> Generator[Dict[str, Any], None, None]:
         """
-        Process a chat message with streaming response.
-        Uses two-stage query rewriting for optimal retrieval and response quality.
+        Advanced RAG workflow with scope checking, reranking and relevance checking:
+        0. Check if query is about Ancient Egypt (scope check)
+        1. Query → Query Rewriter (Stage 1) 
+        2. Hybrid Search → Top 25 documents
+        3. Rerank → Top 3 documents
+        4. LLM Relevance Check
+        5. If not relevant → Web Search
+        6. Generate final answer with LLM
         
         Args:
             user_input: User's message/question
             include_images: Whether to search for relevant images
-            search_web: Whether to search the web for additional context
+            search_web: Whether to force web search (overrides relevance check)
             
         Yields:
             Dictionary chunks with type and content
@@ -440,39 +582,86 @@ Please provide a detailed, informative answer:"""
             return
         
         try:
-            # Step 1: Search documents using hybrid search (with query rewriting in document_search)
-            doc_results = self.document_search(user_input, k=5)
+            # STEP 0: Check if query is about Ancient Egypt (scope check with LLM)
+            is_in_scope, processed_query = self._check_query_scope(user_input)
             
-            # Step 2: Build context from documents
+            if not is_in_scope:
+                # Query is out of scope - return polite rejection
+                yield {"type": "token", "content": processed_query}  # processed_query contains rejection message
+                return
+            
+            # Query is in scope, proceed with RAG workflow
+            # processed_query now contains the rewritten query for retrieval
+            
+            # STEP 1 & 2: Hybrid search with rewritten query → Top 25 documents
+            doc_results = self.document_search(processed_query, k=25)
+            
+            # STEP 3: Rerank to extract top 3 documents
             context_parts = []
             sources = []
-            if doc_results["success"] and doc_results["documents"]:
+            
+            if doc_results["success"] and doc_results["documents"] and self.reranker:
+                # Extract Document objects for reranking
+                documents = []
                 for doc in doc_results["documents"]:
+                    from langchain_core.documents import Document
+                    documents.append(Document(
+                        page_content=doc["content"],
+                        metadata=doc.get("metadata", {})
+                    ))
+                
+                # Rerank and get top 3
+                print(f"Reranking {len(documents)} documents to top 3...")
+                reranked_docs = self.reranker.rerank(user_input, documents, top_k=3)
+                
+                for doc in reranked_docs:
+                    context_parts.append(doc.page_content)
+                    # Create preview from first 200 chars
+                    preview = doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
+                    sources.append(preview)
+                    
+            elif doc_results["success"] and doc_results["documents"]:
+                # Fallback: no reranker, use top 3 from search
+                for doc in doc_results["documents"][:3]:
                     context_parts.append(doc["content"])
                     sources.append(doc["preview"])
             
-            # Step 2.5: Optionally add web search context
-            if search_web and context_parts:
+            # Combine context
+            context = "\n\n".join(context_parts)
+            
+            # STEP 4: Check context relevance with LLM (unless forced web search)
+            use_web_search = search_web  # Start with user preference
+            
+            if not search_web and context:  # Only check if not forced and we have context
+                is_relevant = self._check_context_relevance(user_input, context)
+                if not is_relevant:
+                    print("Context not relevant - triggering web search")
+                    use_web_search = True
+            
+            # STEP 5: Conditional web search
+            if use_web_search:
                 try:
                     web_results = self.web_search(user_input)
                     if web_results.get("success") and web_results.get("results"):
-                        context_parts.append(f"Web Search Results:\n{web_results['results']}")
-                except:
-                    pass  # Web search is optional
+                        web_context = f"\n\nWeb Search Results:\n{web_results['results']}"
+                        context = context + web_context if context else web_context
+                        print("Web search added to context")
+                except Exception as e:
+                    print(f"Web search failed: {e}")
             
-            # Step 3: Use Stage 2 query rewriting to create conversational prompt
-            if self.query_rewriter and context_parts:
+            # STEP 6: Generate final answer with LLM
+            # Use Stage 2 query rewriting for conversational prompt if we have context
+            if self.query_rewriter and context:
                 prompt = self.query_rewriter.rewrite_for_response(
                     user_query=user_input,
-                    retrieved_context=context_parts,
-                    language="en"  # Could be detected from user_input
+                    retrieved_context=[context],
+                    language="en"
                 )
             else:
-                # Fallback to old prompt building
-                context = "\n\n".join(context_parts)
+                # Fallback prompt
                 prompt = self._build_prompt(user_input, context)
             
-            # Step 4: Generate streaming response using LLM
+            # Stream the LLM response
             if self.llm is not None and hasattr(self.llm, 'stream'):
                 try:
                     for token in self.llm.stream(prompt):
@@ -494,7 +683,7 @@ Please provide a detailed, informative answer:"""
             else:
                 # No LLM - use document excerpts
                 if sources:
-                    answer = f"**Found in documents using Qdrant Hybrid Search:**\n\n"
+                    answer = f"**Found in documents (Top 3 after reranking):**\n\n"
                     for i, source in enumerate(sources[:3], 1):
                         answer += f"**{i}.** {source}\n\n"
                     yield {"type": "token", "content": answer}

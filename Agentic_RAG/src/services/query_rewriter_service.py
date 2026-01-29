@@ -48,7 +48,7 @@ class QueryRewriterService:
     
     def rewrite_for_retrieval(self, user_query: str) -> str:
         """
-        Stage 1: Rewrite user query for optimal vector database retrieval.
+        Stage 1: Rewrite user query for optimal vector database retrieval using LLM.
         
         Converts natural conversational queries into compact, keyword-focused queries
         that are optimized for semantic similarity search.
@@ -69,43 +69,64 @@ class QueryRewriterService:
         if not user_query or not user_query.strip():
             return ""
         
-        # Store original for fallback
+        # If LLM is available, use it for intelligent rewriting
+        if self.llm_client:
+            try:
+                rewrite_prompt = f"""You are a query optimization expert for a vector database about Ancient Egypt.
+
+User's original question: "{user_query}"
+
+Task: Rewrite this query into a concise, keyword-focused search query optimized for semantic similarity search in a vector database.
+
+Guidelines:
+1. Remove conversational filler words (hi, please, can you, tell me, etc.)
+2. Keep only the essential keywords and concepts
+3. Preserve important terms: pharaoh names, locations, historical terms
+4. Add relevant synonyms or related terms if helpful for retrieval
+5. Keep the query focused and concise (typically 3-8 words)
+6. If asking "how", add words like "construction", "methods", "process"
+7. If asking "why", add words like "purpose", "significance", "reason"
+
+Output ONLY the rewritten query, nothing else.
+
+Rewritten query:"""
+
+                response = self.llm_client.invoke(rewrite_prompt)
+                rewritten = response.content.strip() if hasattr(response, 'content') else str(response).strip()
+                
+                # Clean up the response
+                rewritten = rewritten.replace('"', '').replace("'", '').strip()
+                
+                # Fallback if LLM returns empty or too long
+                if rewritten and 5 <= len(rewritten) <= 200:
+                    print(f"LLM Query Rewrite: '{user_query}' → '{rewritten}'")
+                    return rewritten
+                    
+            except Exception as e:
+                print(f"LLM rewrite failed, using rule-based: {e}")
+        
+        # Fallback to rule-based approach
         original_query = user_query.strip()
-        
-        # Convert to lowercase for processing
         query = original_query.lower()
-        
-        # Remove punctuation except hyphens (for names like Abu-Simbel)
         query = re.sub(r'[^\w\s\-]', ' ', query)
-        
-        # Tokenize
         words = query.split()
         
-        # Remove filler words but preserve important keywords
         filtered_words = []
         for word in words:
             word_clean = word.strip('-')
-            # Keep if it's an important keyword or not a filler word
             if (word_clean in self.important_keywords or 
                 word_clean not in self.filler_words or
-                len(word_clean) > 6):  # Keep longer words even if not in important list
+                len(word_clean) > 6):
                 filtered_words.append(word_clean)
         
-        # Handle special patterns
         rewritten_query = ' '.join(filtered_words)
-        
-        # Expand common abbreviations and synonyms for better retrieval
         rewritten_query = self._expand_synonyms(rewritten_query)
-        
-        # Remove extra spaces
         rewritten_query = ' '.join(rewritten_query.split())
         
-        # If we filtered too much, fall back to original
         if len(rewritten_query) < 5 and len(original_query) > 10:
-            # Keep only essential words from original
             words = original_query.lower().split()
             filtered = [w for w in words if len(w) > 3]
-            rewritten_query = ' '.join(filtered[:7])  # Max 7 words
+            rewritten_query = ' '.join(filtered[:7])
         
         return rewritten_query.strip()
     
@@ -198,6 +219,10 @@ class QueryRewriterService:
         # Build the complete prompt
         prompt = f"""You are a knowledgeable and enthusiastic Ancient Egypt tour guide at a world-class museum. You love sharing fascinating stories about pharaohs, pyramids, hieroglyphs, and ancient Egyptian culture.
 
+**IMPORTANT SCOPE:**
+- You specialize ONLY in Ancient Egypt (pharaohs, pyramids, gods, temples, hieroglyphs, archaeology, culture, daily life, etc.)
+- If the question is NOT about Ancient Egypt, politely decline and offer your Ancient Egypt expertise
+
 **Visitor's Question:**
 "{user_query}"
 
@@ -217,6 +242,7 @@ class QueryRewriterService:
 7. {lang_instruction}
 8. If the context doesn't fully answer the question, say what you know and suggest related topics
 9. Aim for 3-5 sentences for simple questions, longer for complex topics
+10. **If the question is NOT about Ancient Egypt:** Politely say "I specialize in Ancient Egyptian history and culture. I'd be happy to discuss topics like pharaohs, pyramids, gods, hieroglyphs, or daily life in ancient Egypt. What would you like to know about Ancient Egypt?"
 
 **Tone:**
 Warm, engaging, educational, and passionate about Ancient Egypt!
