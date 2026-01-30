@@ -28,12 +28,12 @@
     <main class="conversation-panel">
       <header>
         <div>
-          <p class="eyebrow">Talk To Pharos</p>
+          <p class="eyebrow">Talk To Pharos — Voice to Voice</p>
           <h1 id="active-pharaoh-name">Select a Pharaoh</h1>
           <p id="active-pharaoh-era" class="era"></p>
           <p id="service-status" class="service-status"></p>
         </div>
-        <button id="mic-toggle" class="mic-btn" aria-pressed="false">
+        <button id="mic-toggle" class="mic-btn" aria-pressed="false" title="Start or stop voice conversation">
           🎙️ Start Voice Conversation
         </button>
       </header>
@@ -56,6 +56,7 @@
     </main>
   </div>
 
+  <script src="{% static 'pharos/pharos-voice.js' %}"></script>
   <script src="{% static 'pharos/talk_to_pharos.js' %}"></script>
 </body>
 </html>

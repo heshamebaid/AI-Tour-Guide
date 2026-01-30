@@ -1,4 +1,10 @@
+# Virtual env - never commit
 env/
+venv/
+.venv/
+**/venv/
+**/.venv/
+
 *.pyc
 __pycache__/
 db.sqlite3

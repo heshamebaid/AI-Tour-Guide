@@ -1,9 +1,14 @@
-(() => {
+/**
+ * Talk to Pharos - Main app (Voice-to-Voice first)
+ * Depends on pharos-voice.js. Handles: API, personas, UI, and wiring the voice loop.
+ */
+(function () {
+  "use strict";
+
   const appEl = document.getElementById("pharos-app");
   if (!appEl) return;
 
-  const serviceUrl = appEl.dataset.serviceUrl?.replace(/\/$/, "") || "http://localhost:8050";
-
+  const serviceUrl = (appEl.dataset.serviceUrl || "http://localhost:8050").replace(/\/$/, "");
   const personaListEl = document.getElementById("persona-list");
   const timelineEl = document.getElementById("conversation-timeline");
   const inputEl = document.getElementById("traveler-input");
@@ -14,511 +19,252 @@
   const activeEraEl = document.getElementById("active-pharaoh-era");
   const serviceStatusEl = document.getElementById("service-status");
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const canUseSpeechRecognition = Boolean(SpeechRecognition);
-  const canUseSpeechSynthesis = "speechSynthesis" in window;
-
-  let recognition = null;
-  let isListening = false;
   let personas = [];
   let activePersona = null;
   let history = [];
   let isSending = false;
-  let serviceHealthStatus = null;
   let voiceToVoiceMode = false;
-  let pharaohVoice = null;
+  let voiceApi = null;
 
-  const renderPersonas = () => {
+  // ---------- API ----------
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${serviceUrl}/health`);
+      const data = res.ok ? await res.json() : {};
+      const ok = data.status === "healthy";
+      updateServiceStatus(ok);
+      return ok;
+    } catch (e) {
+      updateServiceStatus(false);
+      return false;
+    }
+  }
+
+  async function fetchPersonas() {
+    const res = await fetch(`${serviceUrl}/pharos`);
+    if (!res.ok) throw new Error("Failed to load personas");
+    const list = await res.json();
+    return Array.isArray(list) ? list : [];
+  }
+
+  async function converse(userText) {
+    const res = await fetch(`${serviceUrl}/converse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pharaoh_id: activePersona.id,
+        user_query: userText,
+        history,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Service error");
+    }
+    const payload = await res.json();
+    return (payload.answer || "").trim() || "The Pharaoh remains silent...";
+  }
+
+  // ---------- UI ----------
+  function updateServiceStatus(ok) {
+    if (!serviceStatusEl) return;
+    serviceStatusEl.textContent = ok ? "🟢 Service Ready" : "🔴 Service Unavailable";
+    serviceStatusEl.className = "service-status " + (ok ? "ready" : "unavailable");
+  }
+
+  function renderPersonas() {
     personaListEl.innerHTML = "";
-    personas.forEach((persona) => {
+    personas.forEach((p) => {
       const card = document.createElement("button");
       card.type = "button";
-      card.className = `persona-card${activePersona?.id === persona.id ? " active" : ""}`;
-      card.dataset.personaId = persona.id;
-      card.innerHTML = `
-        <div class="avatar">${persona.display_name[0] || "?"}</div>
-        <div>
-          <h3>${persona.display_name}</h3>
-          <p>${persona.short_bio}</p>
-        </div>
-      `;
-      card.addEventListener("click", () => selectPersona(persona.id));
+      card.className = "persona-card" + (activePersona && activePersona.id === p.id ? " active" : "");
+      card.dataset.personaId = p.id;
+      card.innerHTML = `<div class="avatar">${(p.display_name || "?")[0]}</div><div><h3>${p.display_name}</h3><p>${p.short_bio}</p></div>`;
+      card.addEventListener("click", () => selectPersona(p.id));
       personaListEl.appendChild(card);
     });
-  };
+  }
 
-  const selectPersona = (personaId) => {
-    const persona = personas.find((p) => p.id === personaId);
-    if (!persona) return;
-    activePersona = persona;
+  function selectPersona(personaId) {
+    const p = personas.find((x) => x.id === personaId);
+    if (!p) return;
+    activePersona = p;
     history = [];
-    timelineEl.innerHTML = `
-      <div class="empty-state">
-        <p>You are now connected with ${persona.display_name}. Greet them to begin.</p>
-      </div>
-    `;
-    activeNameEl.textContent = persona.display_name;
-    activeEraEl.textContent = persona.era;
+    timelineEl.innerHTML = `<div class="empty-state"><p>You are now connected with ${p.display_name}. Greet them to begin.</p></div>`;
+    activeNameEl.textContent = p.display_name;
+    activeEraEl.textContent = p.era || "";
     renderPersonas();
-  };
+  }
 
-  const appendMessage = (speaker, text) => {
-    if (timelineEl.querySelector(".empty-state")) {
-      timelineEl.innerHTML = "";
-    }
-    const messageEl = document.createElement("div");
-    messageEl.className = `message ${speaker}`;
-    messageEl.innerHTML = `
-      <p class="speaker">${speaker === "user" ? "Traveler" : activePersona?.display_name || "Pharaoh"}</p>
-      <p>${text}</p>
-    `;
-    timelineEl.appendChild(messageEl);
+  function appendMessage(speaker, text) {
+    if (timelineEl.querySelector(".empty-state")) timelineEl.innerHTML = "";
+    const msg = document.createElement("div");
+    msg.className = "message " + speaker;
+    const label = speaker === "user" ? "Traveler" : (activePersona && activePersona.display_name) || "Pharaoh";
+    msg.innerHTML = `<p class="speaker">${label}</p><p>${text}</p>`;
+    timelineEl.appendChild(msg);
     timelineEl.scrollTop = timelineEl.scrollHeight;
-  };
+    return msg;
+  }
 
-  const findBestPharaohVoice = () => {
-    if (!canUseSpeechSynthesis) return null;
-    
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
-    
-    // Prefer deep, male voices for pharaoh
-    // Look for voices with keywords: "male", "deep", "low", or specific voice names
-    const preferredKeywords = ["male", "deep", "low", "david", "daniel", "james", "rich"];
-    
-    // First, try to find a voice with preferred keywords
-    for (const voice of voices) {
-      const nameLower = voice.name.toLowerCase();
-      const langMatch = voice.lang.startsWith("en");
-      
-      if (langMatch && preferredKeywords.some(keyword => nameLower.includes(keyword))) {
-        return voice;
-      }
-    }
-    
-    // If no preferred voice found, find the deepest male voice
-    // Filter English voices and prefer lower pitch voices
-    const englishVoices = voices.filter(v => v.lang.startsWith("en"));
-    if (englishVoices.length === 0) return voices[0]; // Fallback to first voice
-    
-    // Prefer voices that don't sound female (avoid names like "susan", "karen", "zira", etc.)
-    const femaleKeywords = ["susan", "karen", "zira", "samantha", "victoria", "kate", "sarah"];
-    const maleVoices = englishVoices.filter(v => {
-      const nameLower = v.name.toLowerCase();
-      return !femaleKeywords.some(keyword => nameLower.includes(keyword));
-    });
-    
-    return maleVoices.length > 0 ? maleVoices[0] : englishVoices[0];
-  };
+  function removeLastMessageIfListeningIndicator() {
+    const last = timelineEl.lastElementChild;
+    if (last && (last.textContent.includes("🎙️") || last.textContent.includes("Listening"))) last.remove();
+  }
 
-  const initializePharaohVoice = () => {
-    if (!canUseSpeechSynthesis) return;
-    
-    // Load voices (may need to wait for voices to be loaded)
-    if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.addEventListener("voiceschanged", () => {
-        pharaohVoice = findBestPharaohVoice();
-      }, { once: true });
-    } else {
-      pharaohVoice = findBestPharaohVoice();
-    }
-  };
+  function setMicButton(listening) {
+    micBtn.setAttribute("aria-pressed", listening ? "true" : "false");
+    micBtn.textContent = listening ? "🛑 Stop Voice Conversation" : "🎙️ Start Voice Conversation";
+    micBtn.classList.toggle("listening", listening);
+  }
 
-  const speakAsPharaoh = (text) => {
-    if (!canUseSpeechSynthesis || !text) return;
-    
-    try {
-      // Cancel any ongoing speech
-      window.speechSynthesis.cancel();
-      
-      // Ensure we have a voice selected
-      if (!pharaohVoice) {
-        pharaohVoice = findBestPharaohVoice();
-      }
-      
-      // Find the last pharaoh message and mark it as speaking
-      const pharaohMessages = timelineEl.querySelectorAll('.message.pharaoh');
-      const lastPharaohMessage = pharaohMessages[pharaohMessages.length - 1];
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Enhanced voice settings for regal, great pharaoh sound
-      utterance.rate = 0.85;  // Slower, more deliberate (was 1.0)
-      utterance.pitch = 0.7;   // Lower pitch for deeper, more authoritative voice (was 0.85)
-      utterance.volume = 0.95; // Slightly louder for presence (was 0.9)
-      utterance.lang = "en-US";
-      
-      // Use the best available voice
-      if (pharaohVoice) {
-        utterance.voice = pharaohVoice;
-      }
-      
-      // Visual feedback: mark message as speaking
-      utterance.onstart = () => {
-        if (lastPharaohMessage) {
-          lastPharaohMessage.classList.add('speaking');
-        }
-      };
-      
-      // Auto-restart listening after pharaoh finishes speaking (voice-to-voice mode)
-      utterance.onend = () => {
-        // Remove speaking visual feedback
-        if (lastPharaohMessage) {
-          lastPharaohMessage.classList.remove('speaking');
-        }
-        
-        // Small delay before restarting to avoid overlap
-        setTimeout(() => {
-          // Only auto-restart if we're in voice-to-voice mode and not sending
-          if (voiceToVoiceMode && isListening === false && !isSending && activePersona) {
-            // Check if speech synthesis is not speaking
-            if (!window.speechSynthesis.speaking) {
-              startListening();
-            }
-          }
-        }, 300);
-      };
-      
-      utterance.onerror = (event) => {
-        console.warn("Speech synthesis error:", event.error);
-        if (lastPharaohMessage) {
-          lastPharaohMessage.classList.remove('speaking');
-        }
-      };
-      
-      window.speechSynthesis.speak(utterance);
-    } catch (error) {
-      console.warn("Speech synthesis failed", error);
+  // ---------- Send message (text or from voice) ----------
+  async function sendMessage(optionalText) {
+    const text = (optionalText != null ? optionalText : inputEl.value || "").trim();
+    if (!text || !activePersona) {
+      if (!activePersona) appendMessage("pharaoh", "⚠️ Please select a Pharaoh first.");
+      return null;
     }
-  };
 
-  const sendMessage = async () => {
-    if (isSending || !activePersona) {
-      if (!activePersona) {
-        appendMessage("pharaoh", "⚠️ Please select a Pharaoh first.");
-      }
-      return;
-    }
-    const text = inputEl.value.trim();
-    if (!text) return;
-
-    // Stop listening if active
-    if (isListening) {
-      stopListening();
-    }
+    if (voiceApi && voiceApi.isListening()) voiceApi.stopListening();
 
     appendMessage("user", text);
     history.push({ speaker: "user", content: text });
     inputEl.value = "";
     isSending = true;
     sendBtn.disabled = true;
-    sendBtn.textContent = "Sending...";
-
-    // Check service health before sending
-    const isHealthy = await checkServiceHealth();
-    if (!isHealthy) {
-      appendMessage("pharaoh", "⚠️ Service is not ready. Please wait a moment and try again.");
-      isSending = false;
-      sendBtn.disabled = false;
-      sendBtn.textContent = "Send";
-      return;
-    }
+    if (sendBtn.textContent === "Send") sendBtn.textContent = "Sending...";
 
     try {
-      const response = await fetch(`${serviceUrl}/converse`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pharaoh_id: activePersona.id,
-          user_query: text,
-          history,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Service error (${response.status})`);
+      const healthy = await checkHealth();
+      if (!healthy) {
+        appendMessage("pharaoh", "⚠️ Service is not ready. Please wait and try again.");
+        return null;
       }
-
-      const payload = await response.json();
-      const answer = payload.answer?.trim() || "The Pharaoh remains silent...";
+      const answer = await converse(text);
       appendMessage("pharaoh", answer);
       history.push({ speaker: "pharaoh", content: answer });
-      
-      // Always speak the pharaoh's response
-      speakAsPharaoh(answer);
-      
-      // In voice-to-voice mode, listening will auto-restart after pharaoh speaks
-      // (handled in speakAsPharaoh's onend callback)
-    } catch (error) {
-      appendMessage("pharaoh", `⚠️ ${error.message || "Failed to reach the Pharaoh"}`);
+      if (voiceApi && voiceApi.speak) {
+        voiceApi.speak(answer, {
+          onStart: () => markLastPharaohSpeaking(true),
+          onEnd: () => markLastPharaohSpeaking(false),
+        });
+      }
+      return answer;
+    } catch (err) {
+      appendMessage("pharaoh", "⚠️ " + (err.message || "Failed to reach the Pharaoh"));
+      return null;
     } finally {
       isSending = false;
       sendBtn.disabled = false;
       sendBtn.textContent = "Send";
     }
-  };
+  }
 
-  const clearConversation = () => {
-    history = [];
-    timelineEl.innerHTML = `<div class="empty-state"><p>Conversation cleared.</p></div>`;
-  };
+  // ---------- Voice-to-voice loop ----------
+  function markLastPharaohSpeaking(speaking) {
+    const pharaohMsgs = timelineEl.querySelectorAll(".message.pharaoh");
+    if (pharaohMsgs.length) pharaohMsgs[pharaohMsgs.length - 1].classList.toggle("speaking", speaking);
+  }
 
-  const updateServiceStatus = (isHealthy) => {
-    if (!serviceStatusEl) return;
-    if (isHealthy) {
-      serviceStatusEl.textContent = "🟢 Service Ready";
-      serviceStatusEl.className = "service-status ready";
-    } else {
-      serviceStatusEl.textContent = "🔴 Service Unavailable";
-      serviceStatusEl.className = "service-status unavailable";
-    }
-  };
-
-  const checkServiceHealth = async () => {
-    try {
-      const response = await fetch(`${serviceUrl}/health`);
-      if (response.ok) {
-        const data = await response.json();
-        serviceHealthStatus = data.status === "healthy";
-        updateServiceStatus(serviceHealthStatus);
-        return serviceHealthStatus;
-      } else {
-        serviceHealthStatus = false;
-        updateServiceStatus(false);
-        return false;
+  function onFinalTranscript(text) {
+    removeLastMessageIfListeningIndicator();
+    sendMessage(text).then((answer) => {
+      if (answer && voiceApi && voiceToVoiceMode) {
+        voiceApi.speak(answer, {
+          onStart: () => markLastPharaohSpeaking(true),
+          onEnd: () => {
+            markLastPharaohSpeaking(false);
+            if (voiceToVoiceMode && !isSending && activePersona && voiceApi) setTimeout(() => voiceApi.startListening(800), 300);
+          },
+        });
       }
-    } catch (error) {
-      console.warn("Health check failed:", error);
-      serviceHealthStatus = false;
-      updateServiceStatus(false);
-      return false;
-    }
-  };
+    });
+  }
 
-  const bootstrap = async () => {
-    // Check service health first
-    const isHealthy = await checkServiceHealth();
-    if (!isHealthy) {
-      personaListEl.innerHTML = `<p class="error">⚠️ Service is not ready. Please wait a moment and refresh.</p>`;
-      // Retry after 3 seconds
+  function startVoiceConversation() {
+    if (!activePersona) {
+      appendMessage("pharaoh", "⚠️ Please select a Pharaoh first.");
+      return;
+    }
+    if (!voiceApi || !voiceApi.supported) return;
+    voiceToVoiceMode = true;
+    inputEl.value = "";
+    appendMessage("pharaoh", "🎙️ Voice conversation active. Speak naturally — I'll respond with my voice.");
+    voiceApi.startListening(800);
+  }
+
+  function stopVoiceConversation() {
+    voiceToVoiceMode = false;
+    if (voiceApi) voiceApi.stopListening();
+  }
+
+  function toggleMic() {
+    if (voiceApi && voiceApi.isListening()) {
+      stopVoiceConversation();
+      return;
+    }
+    startVoiceConversation();
+  }
+
+  // ---------- Bootstrap ----------
+  async function bootstrap() {
+    const healthy = await checkHealth();
+    if (!healthy) {
+      personaListEl.innerHTML = "<p class=\"error\">⚠️ Service not ready. Retrying...</p>";
       setTimeout(bootstrap, 3000);
       return;
     }
-
     try {
-      const response = await fetch(`${serviceUrl}/pharos`);
-      if (!response.ok) throw new Error("Failed to load personas");
-      personas = await response.json();
-      if (!Array.isArray(personas) || personas.length === 0) {
+      personas = await fetchPersonas();
+      if (!personas.length) {
         personaListEl.innerHTML = "<p>No personas available.</p>";
         return;
       }
       renderPersonas();
       selectPersona(personas[0].id);
-    } catch (error) {
-      personaListEl.innerHTML = `<p class="error">Unable to load personas: ${error.message}</p>`;
+    } catch (e) {
+      personaListEl.innerHTML = "<p class=\"error\">" + (e.message || "Unable to load personas") + "</p>";
     }
-  };
+  }
 
-  const stopListening = () => {
-    if (recognition && isListening) {
-      recognition.stop();
-    }
-    isListening = false;
-    voiceToVoiceMode = false;
-    micBtn.setAttribute("aria-pressed", "false");
-    micBtn.textContent = "🎙️ Start Voice Conversation";
-    micBtn.classList.remove("listening");
-    
-    // Clear any pending auto-send timeout
-    if (window.autoSendTimeout) {
-      clearTimeout(window.autoSendTimeout);
-      window.autoSendTimeout = null;
-    }
-    
-    // Cancel any ongoing speech
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-    }
-  };
+  function initVoice() {
+    voiceApi = PharosVoice.init({
+      lang: "en-US",
+      callbacks: {
+        onInterimTranscript: (text) => { inputEl.value = text; },
+        onFinalTranscript,
+        onSpeakEnd: () => {
+          if (voiceToVoiceMode && !isSending && activePersona && voiceApi) voiceApi.startListening(800);
+        },
+        onError: (source, msg) => appendMessage("pharaoh", "⚠️ " + (typeof msg === "string" ? msg : msg.message || "Voice error")),
+        onListeningChange: setMicButton,
+      },
+    });
 
-  const startListening = () => {
-    if (!recognition || !activePersona) {
-      if (!activePersona) {
-        appendMessage("pharaoh", "⚠️ Please select a Pharaoh first.");
-      }
-      return;
-    }
-    if (isListening) {
-      stopListening();
-      voiceToVoiceMode = false;
-      return;
-    }
-    try {
-      // Enable voice-to-voice mode when starting listening
-      voiceToVoiceMode = true;
-      
-      // Clear input before starting
-      inputEl.value = "";
-      recognition.start();
-      isListening = true;
-      micBtn.setAttribute("aria-pressed", "true");
-      micBtn.textContent = "🛑 Stop Voice Conversation";
-      micBtn.classList.add("listening");
-      
-      // Add visual indicator (only if conversation is empty or last message wasn't a listening indicator)
-      const lastMessage = timelineEl.lastElementChild;
-      if (!lastMessage || !lastMessage.textContent.includes("🎙️")) {
-        appendMessage("pharaoh", "🎙️ Voice conversation active. Speak naturally - I'll respond with my voice.");
-      }
-    } catch (error) {
-      appendMessage("pharaoh", `⚠️ Microphone error: ${error.message}`);
-      stopListening();
-      voiceToVoiceMode = false;
-    }
-  };
-
-  const initVoiceFeatures = () => {
-    if (!canUseSpeechRecognition) {
+    if (!voiceApi.supported) {
       micBtn.disabled = true;
       micBtn.textContent = "🎙️ Voice not supported";
       micBtn.classList.add("disabled");
       return;
     }
 
-    recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.interimResults = true; // Show interim results
-    recognition.continuous = true; // Keep listening until stopped
-    recognition.maxAlternatives = 1;
+    micBtn.addEventListener("click", toggleMic);
+  }
 
-    recognition.addEventListener("result", (event) => {
-      let interimTranscript = "";
-      let finalTranscript = "";
-      
-      // Separate interim and final results
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript + " ";
-        } else {
-          interimTranscript += transcript;
-        }
-      }
-      
-      // Update input with current transcript (final + interim)
-      const currentText = (finalTranscript + interimTranscript).trim();
-      if (currentText) {
-        inputEl.value = currentText;
-      }
-      
-      // If we have final results, auto-send after a brief pause
-      if (finalTranscript.trim()) {
-        // Clear any existing timeout
-        if (window.autoSendTimeout) {
-          clearTimeout(window.autoSendTimeout);
-        }
-        
-        // In voice-to-voice mode, use shorter pause for more natural conversation
-        const pauseDuration = voiceToVoiceMode ? 800 : 1000;
-        
-        // Auto-send after pause of no new final results
-        window.autoSendTimeout = setTimeout(() => {
-          const textToSend = inputEl.value.trim();
-          if (textToSend && activePersona && !isSending && isListening) {
-            // Remove the listening indicator message if present
-            const lastMessage = timelineEl.lastElementChild;
-            if (lastMessage && (lastMessage.textContent.includes("🎙️") || 
-                                lastMessage.textContent.includes("Listening"))) {
-              lastMessage.remove();
-            }
-            
-            // Temporarily stop listening while sending (will restart after pharaoh speaks)
-            const wasInVoiceMode = voiceToVoiceMode;
-            if (wasInVoiceMode) {
-              recognition.stop();
-              isListening = false;
-            }
-            
-            // Send message - listening will restart automatically after pharaoh speaks
-            // via the speakAsPharaoh onend callback
-            sendMessage();
-          }
-          window.autoSendTimeout = null;
-        }, pauseDuration);
-      }
-    });
-
-    recognition.addEventListener("end", () => {
-      // In voice-to-voice mode, we'll restart listening after pharaoh speaks
-      // (handled by speakAsPharaoh's onend callback)
-      // Only auto-restart here if we're still supposed to be listening
-      // and not waiting for pharaoh to respond
-      if (isListening && recognition.continuous && !isSending && voiceToVoiceMode) {
-        // Check if pharaoh is currently speaking - if so, don't restart yet
-        if (!window.speechSynthesis.speaking) {
-          try {
-            recognition.start();
-          } catch (error) {
-            // Recognition might already be starting, ignore the error
-            console.debug("Recognition restart:", error.message);
-          }
-        }
-      } else if (isListening && !voiceToVoiceMode) {
-        // Not in voice-to-voice mode, restart normally
-        try {
-          recognition.start();
-        } catch (error) {
-          console.debug("Recognition restart:", error.message);
-        }
-      }
-    });
-
-    recognition.addEventListener("error", (event) => {
-      let errorMessage = "Voice recognition error";
-      switch (event.error) {
-        case "no-speech":
-          errorMessage = "No speech detected. Please try again.";
-          break;
-        case "audio-capture":
-          errorMessage = "Microphone not found. Please check your microphone.";
-          break;
-        case "not-allowed":
-          errorMessage = "Microphone permission denied. Please allow microphone access.";
-          break;
-        case "network":
-          errorMessage = "Network error during voice recognition.";
-          break;
-        default:
-          errorMessage = `Voice error: ${event.error}`;
-      }
-      appendMessage("pharaoh", `⚠️ ${errorMessage}`);
-      stopListening();
-    });
-
-    micBtn.addEventListener("click", startListening);
-  };
-
-  sendBtn.addEventListener("click", sendMessage);
-  inputEl.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage();
-    }
+  // ---------- Event bindings ----------
+  sendBtn.addEventListener("click", () => sendMessage());
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
-  clearBtn.addEventListener("click", clearConversation);
+  clearBtn.addEventListener("click", () => {
+    history = [];
+    timelineEl.innerHTML = "<div class=\"empty-state\"><p>Conversation cleared.</p></div>";
+  });
 
-  // Periodic health check every 30 seconds
-  const startHealthCheckInterval = () => {
-    setInterval(async () => {
-      await checkServiceHealth();
-    }, 30000);
-  };
+  setInterval(checkHealth, 30000);
 
+  // ---------- Start ----------
   bootstrap();
-  initVoiceFeatures();
-  initializePharaohVoice();
-  startHealthCheckInterval();
+  initVoice();
 })();
-

@@ -50,3 +50,12 @@ docker run -p 8050:8050 --env OPEN_ROUTER_API_KEY=... talk-to-pharos
 - `GET /pharos` – lists personas (currently Ramesses II)
 - `POST /converse` – persona conversation `{pharaoh_id, user_query, history[]}`
 
+## Voice-to-Voice (frontend)
+
+The Django page **Talk To Pharos** is built for **voice-to-voice**:
+
+- **pharos-voice.js** – Voice module: Web Speech API (recognition + synthesis), start/stop listening, speak pharaoh response, callbacks for transcript and speak-end.
+- **talk_to_pharos.js** – App: API calls, personas, UI, and wiring: mic → listen → final transcript → `POST /converse` → speak answer → auto-restart listening.
+
+Flow: user clicks mic → continuous listening → on pause, user speech is sent to `/converse` → pharaoh reply is spoken → listening restarts. Text input still works; pharaoh replies are also spoken when sent from the text box.
+

@@ -1,28 +1,67 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
+# Virtual environments - never send to Docker build context
 venv/
 .venv/
 env/
-.env
-*.log
-.git
+ENV/
+virtualenv/
+**/venv/
+**/.venv/
+**/env/
+Chatbot/venv/
+Django/venv/
+talk_to_pharos_service/venv/
+talk_to_pharos_service/.venv/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+*.egg
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+
+# Git and IDE
+.git/
 .gitignore
-*.md
-.DS_Store
+.github/
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
-.vscode/
-.idea/
-node_modules/
-*.egg-info/
-dist/
-build/
-*.db
-*.sqlite3
-Chatbot/venv/
-Django/venv/
-talk_to_pharos_service/.venv/
+
+# Docs and misc (keep docker README if needed)
+*.md
+!docker/README.md
+
+# OS
+.DS_Store
+Thumbs.db
+~$*
+
+# Logs and local config
+*.log
+.env
+.env.*
+!.env.example
+
+# Large caches and storage (rebuilt in container)
+qdrant_storage/
+.transformers_cache/
+.huggingface/
+*.safetensors
+*.onnx
+sentence-transformers/
+
+# Optional: exclude tests to shrink context (uncomment if desired)
+# test_*.py
+# **/tests/
+# **/test_*.py

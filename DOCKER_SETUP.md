@@ -1,6 +1,11 @@
 # Docker Setup Guide
 
-Complete Docker setup for the AI Tour Guide Platform with all services.
+Complete Docker setup for the AI Tour Guide Platform with all services. **Run from the repository root** (where this file and `docker-compose.yml` live).
+
+## Venv and Git
+
+- Virtual environments (`venv/`, `.venv/`, etc.) are **ignored by Git** and **excluded from the Docker build context** (`.dockerignore`), so you can push without venv and builds stay fast.
+- If venv was ever committed, run once: `ensure_no_venv_in_git.bat` (Windows) or `./ensure_no_venv_in_git.sh` (Linux/Mac), then commit the change.
 
 ## Prerequisites
 
@@ -8,6 +13,19 @@ Complete Docker setup for the AI Tour Guide Platform with all services.
 - Docker Compose installed
 - At least 4GB RAM available
 - OpenRouter API key
+
+## Requirements (per service)
+
+All Python requirements are installed **inside** the images during `docker-compose build`. You do not need to run `pip install` on your host.
+
+| Service            | Requirements files used in Dockerfile |
+|--------------------|----------------------------------------|
+| **translation-api** | `requirements.txt` (root) |
+| **chatbot-api**     | `requirements.txt`, `Chatbot/requirements.txt`, `Agentic_RAG/requirements.txt` |
+| **pharos-service**  | `requirements.txt`, `talk_to_pharos_service/requirements.txt`, `Agentic_RAG/requirements.txt` |
+| **django-web**      | `requirements.txt` (root) + `django`, `djangorestframework` |
+
+All of these files exist in the repo. Build order uses root `requirements.txt` first, then service-specific files where applicable.
 
 ## Quick Start
 

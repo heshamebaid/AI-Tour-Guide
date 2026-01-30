@@ -29,6 +29,7 @@ python-dotenv>=0.19.0
 openpyxl>=3.0.9  # For Excel file support
 Pillow>=8.3.0    # For image processing
 tqdm>=4.62.0     # For progress bars
+PyYAML>=6.0      # For translation_service config_loader
 
 #chatbot
 streamlit
