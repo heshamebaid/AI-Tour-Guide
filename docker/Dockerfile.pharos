@@ -13,11 +13,18 @@ COPY talk_to_pharos_service/requirements.txt ./talk_to_pharos_service/requiremen
 RUN mkdir -p Agentic_RAG
 COPY Agentic_RAG/requirements.txt ./Agentic_RAG/requirements.txt
 
-# Install Python dependencies (pharos + RAG: sentence-transformers, faiss-cpu + Agentic_RAG)
+# Longer pip timeout for large downloads (torch ~915MB); default 15s often times out
+ENV PIP_DEFAULT_TIMEOUT=1200
+
+# Install lightweight deps first (fast)
 RUN pip install --no-cache-dir -r talk_to_pharos_service/requirements.txt && \
-    pip install --no-cache-dir numpy pandas requests python-dotenv && \
-    pip install --no-cache-dir sentence-transformers faiss-cpu && \
-    (pip install --no-cache-dir -r Agentic_RAG/requirements.txt || true)
+    pip install --no-cache-dir numpy pandas requests python-dotenv
+
+# Install heavy RAG deps (sentence-transformers pulls torch) with explicit timeout
+RUN pip install --no-cache-dir --timeout 1200 sentence-transformers faiss-cpu
+
+# Agentic_RAG extras (optional, allow failure)
+RUN pip install --no-cache-dir --timeout 600 -r Agentic_RAG/requirements.txt || true
 
 # Copy application code
 COPY talk_to_pharos_service/ ./talk_to_pharos_service/

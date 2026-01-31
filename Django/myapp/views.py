@@ -391,65 +391,8 @@ def talk_to_pharos_view(request):
     return render(request, 'pharos/talk_to_pharos.html', context)
 
 
-# --- Place details (location → LLM-generated visitor info) ---
-OPEN_ROUTER_API_KEY = os.environ.get("OPEN_ROUTER_API_KEY")
-OPEN_ROUTER_MODEL = os.environ.get("OPEN_ROUTER_MODEL") or os.environ.get("LLM_MODEL") or "openai/gpt-4o-mini"
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
-
-
-def _reverse_geocode(lat: float, lon: float) -> str:
-    """Resolve lat/lon to a human-readable place name using Nominatim (no API key)."""
-    try:
-        r = requests.get(
-            NOMINATIM_URL,
-            params={"lat": lat, "lon": lon, "format": "json"},
-            headers={"User-Agent": "AI-Tour-Guide/1.0 (Educational)"},
-            timeout=5,
-        )
-        if not r.ok:
-            return f"Location ({lat:.4f}, {lon:.4f})"
-        data = r.json()
-        return data.get("display_name") or data.get("name") or f"Location ({lat:.4f}, {lon:.4f})"
-    except Exception:
-        return f"Location ({lat:.4f}, {lon:.4f})"
-
-
-def _place_details_llm(place_name_or_address: str) -> str:
-    """Call OpenRouter to generate visitor-friendly place details."""
-    if not OPEN_ROUTER_API_KEY:
-        return "Place details are unavailable: OPEN_ROUTER_API_KEY is not set."
-    system = (
-        "You are an AI tour guide for visitors. Given a place name or address, provide a concise, "
-        "visitor-friendly overview: name, significance, what to see, practical tips, and any "
-        "ancient Egyptian or historical connection if relevant. Use clear short paragraphs. "
-        "If the place is unknown, say so politely and suggest checking the name or trying a nearby landmark."
-    )
-    payload = {
-        "model": OPEN_ROUTER_MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": f"Tell me about this place for a visitor:\n\n{place_name_or_address[:2000]}"},
-        ],
-    }
-    try:
-        r = requests.post(
-            OPENROUTER_URL,
-            headers={
-                "Authorization": f"Bearer {OPEN_ROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=45,
-        )
-        if not r.ok:
-            return f"Sorry, the guide service returned an error (HTTP {r.status_code})."
-        data = r.json()
-        return (data.get("choices") or [{}])[0].get("message", {}).get("content") or "No description generated."
-    except requests.exceptions.Timeout:
-        return "The request timed out. Please try again."
-    except Exception as e:
-        return f"Error: {str(e)}"
+# --- Place details: proxy to standalone Place Details Service ---
+PLACE_DETAILS_SERVICE_URL = (os.environ.get("PLACE_DETAILS_SERVICE_URL") or "http://localhost:8060").rstrip("/")
 
 
 def place_details_view(request):
@@ -460,29 +403,32 @@ def place_details_view(request):
 @csrf_exempt
 def place_details_api(request):
     """
-    API: POST JSON { lat, lng } or { place_name }.
+    Proxy to Place Details Service: POST JSON { lat, lng } or { place_name }.
     Returns { success, place_name, details, error }.
     """
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
     try:
-        data = json.loads(request.body) if request.body else {}
-    except json.JSONDecodeError:
-        data = {}
-    lat = data.get("lat")
-    lng = data.get("lng")
-    place_name = (data.get("place_name") or "").strip()
-    if lat is not None and lng is not None:
-        try:
-            lat, lng = float(lat), float(lng)
-        except (TypeError, ValueError):
-            return JsonResponse({"success": False, "error": "Invalid lat/lng"}, status=400)
-        place_name = _reverse_geocode(lat, lng)
-    if not place_name:
-        return JsonResponse({"success": False, "error": "Provide lat/lng or place_name"}, status=400)
-    details = _place_details_llm(place_name)
-    return JsonResponse({
-        "success": True,
-        "place_name": place_name,
-        "details": details,
-    })
+        payload = request.body
+        r = requests.post(
+            f"{PLACE_DETAILS_SERVICE_URL}/details",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=60,
+        )
+        data = r.json() if r.content else {}
+        if not r.ok:
+            return JsonResponse(
+                {"success": False, "error": data.get("error") or f"Service error ({r.status_code})"},
+                status=r.status_code,
+            )
+        return JsonResponse(data)
+    except requests.exceptions.ConnectionError:
+        return JsonResponse(
+            {"success": False, "error": "Place details service is unavailable. Please try again later."},
+            status=503,
+        )
+    except requests.exceptions.Timeout:
+        return JsonResponse({"success": False, "error": "The request timed out. Please try again."}, status=504)
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)

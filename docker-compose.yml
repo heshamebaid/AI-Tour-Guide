@@ -40,6 +40,24 @@ services:
       timeout: 10s
       retries: 3
 
+  # Place Details Service (location / place name → LLM visitor info)
+  place-details-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.place_details
+    container_name: place-details-service
+    ports:
+      - "8060:8060"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8060/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Talk To Pharos Service
   pharos-service:
     build:
@@ -83,11 +101,12 @@ services:
       - PYTHONUNBUFFERED=1
       - PHAROS_SERVICE_URL=http://pharos-service:8050
       - PHAROS_PUBLIC_URL=http://localhost:8050
-      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - PLACE_DETAILS_SERVICE_URL=http://place-details-service:8060
       - DJANGO_SETTINGS_MODULE=myproject.settings
     depends_on:
       - pharos-service
       - chatbot-api
+      - place-details-service
     restart: unless-stopped
     command: sh -c "python manage.py migrate --noinput && python manage.py shell -c \"from django.contrib.auth.models import User; User.objects.get_or_create(username='hesham', defaults={'email':'hesham@example.com','is_staff':True,'is_superuser':True}); u=User.objects.get(username='hesham'); u.set_password('12345678'); u.save(); print('User hesham ready')\" && python manage.py runserver 0.0.0.0:9000"
 

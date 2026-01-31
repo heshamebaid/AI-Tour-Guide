@@ -1,0 +1,20 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+COPY place_details_service/requirements.txt ./place_details_service/requirements.txt
+RUN pip install --no-cache-dir -r place_details_service/requirements.txt
+
+COPY place_details_service/ ./place_details_service/
+
+EXPOSE 8060
+
+ENV PLACE_DETAILS_HOST=0.0.0.0
+ENV PLACE_DETAILS_PORT=8060
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD curl -f http://localhost:8060/health || exit 1
+
+CMD ["uvicorn", "place_details_service.app:app", "--host", "0.0.0.0", "--port", "8060"]
