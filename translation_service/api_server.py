@@ -17,8 +17,8 @@ import uuid
 import json
 from dotenv import load_dotenv
 
-# Import pipeline classes
-from hieroglyph_pipeline import HieroglyphPipeline, HieroglyphConfig
+# Import pipeline classes (relative for uvicorn translation_service.api_server)
+from .hieroglyph_pipeline import HieroglyphPipeline, HieroglyphConfig
 
 # Configure logging
 logging.basicConfig(

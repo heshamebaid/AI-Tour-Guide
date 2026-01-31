@@ -77,11 +77,14 @@ async def bootstrap_rag():
                 load_result.get("total_chunks"),
             )
         else:
-            logger.error("Failed to load Agentic_RAG documents: %s", load_result.get("error"))
-            rag_initialized = False
+            logger.warning(
+                "No RAG documents loaded (%s); service will use LLM general knowledge only.",
+                load_result.get("error", "no files"),
+            )
+            rag_initialized = True  # Service ready; converse uses LLM when no RAG data
     except Exception as exc:  # pylint: disable=broad-except
         logger.exception("Unexpected error while initializing Agentic_RAG: %s", exc)
-        rag_initialized = False
+        rag_initialized = True  # Service ready; converse uses LLM when no RAG data
 
 
 @app.get("/")

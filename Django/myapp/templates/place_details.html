@@ -1,0 +1,147 @@
+{% load static %}
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Place details — AI Tour Guide</title>
+  <link rel="stylesheet" href="{% static 'css/navbar.css' %}"/>
+  <link rel="stylesheet" href="{% static 'css/place_details.css' %}"/>
+</head>
+<body>
+  {% include 'partial/navbar.html' %}
+
+  <div class="place-details-page">
+    <h1>Place details</h1>
+    <p class="place-details-intro">Choose how to explore: use your current location, type any place or address, or pick a famous site below.</p>
+
+    <section class="place-option-section">
+      <h2 class="place-option-title">Use current location</h2>
+      <p class="place-option-desc">Get details for where you are right now.</p>
+      <button type="button" id="use-location-btn" class="btn-secondary">Use my location</button>
+    </section>
+
+    <section class="place-option-section">
+      <h2 class="place-option-title">Write a location</h2>
+      <p class="place-option-desc">Enter any place name or address.</p>
+      <div class="place-details-inputs">
+        <input type="text" id="place-name-input" placeholder="e.g. Great Pyramid of Giza, Luxor Temple, or any address" />
+      </div>
+      <button type="button" id="get-details-btn" class="btn-primary">Get details</button>
+    </section>
+
+    <section class="place-option-section recommended-section">
+      <h2 class="place-option-title">Recommended locations</h2>
+      <p class="place-option-desc">Famous Egyptian and tourist sites — click to get details.</p>
+      <div class="recommended-grid" id="recommended-grid">
+        <button type="button" class="recommended-chip" data-place="Great Pyramid of Giza">Great Pyramid of Giza</button>
+        <button type="button" class="recommended-chip" data-place="Great Sphinx of Giza">Great Sphinx of Giza</button>
+        <button type="button" class="recommended-chip" data-place="Pyramids of Giza">Pyramids of Giza</button>
+        <button type="button" class="recommended-chip" data-place="Luxor Temple">Luxor Temple</button>
+        <button type="button" class="recommended-chip" data-place="Valley of the Kings">Valley of the Kings</button>
+        <button type="button" class="recommended-chip" data-place="Karnak Temple">Karnak Temple</button>
+        <button type="button" class="recommended-chip" data-place="Abu Simbel">Abu Simbel</button>
+        <button type="button" class="recommended-chip" data-place="Egyptian Museum Cairo">Egyptian Museum, Cairo</button>
+        <button type="button" class="recommended-chip" data-place="Temple of Hatshepsut">Temple of Hatshepsut</button>
+        <button type="button" class="recommended-chip" data-place="Philae Temple">Philae Temple</button>
+        <button type="button" class="recommended-chip" data-place="Cairo Citadel">Cairo Citadel</button>
+        <button type="button" class="recommended-chip" data-place="Alexandria Lighthouse">Lighthouse of Alexandria</button>
+      </div>
+    </section>
+
+    <div id="place-status" class="place-details-status" aria-live="polite"></div>
+    <div id="place-result" class="place-details-result" style="display: none;">
+      <div class="result-place-name" id="result-place-name"></div>
+      <div class="result-details" id="result-details"></div>
+    </div>
+  </div>
+
+  <script>
+(function () {
+  var apiUrl = "{% url 'place_details_api' %}";
+  var csrfToken = "{{ csrf_token }}";
+  var statusEl = document.getElementById("place-status");
+  var resultEl = document.getElementById("place-result");
+  var resultNameEl = document.getElementById("result-place-name");
+  var resultDetailsEl = document.getElementById("result-details");
+  var placeInput = document.getElementById("place-name-input");
+  var useLocationBtn = document.getElementById("use-location-btn");
+  var getDetailsBtn = document.getElementById("get-details-btn");
+
+  function setStatus(msg, isError, isLoading) {
+    statusEl.textContent = msg || "";
+    statusEl.className = "place-details-status" + (isError ? " error" : "") + (isLoading ? " loading" : "");
+  }
+
+  function showResult(placeName, details) {
+    resultNameEl.textContent = placeName;
+    resultDetailsEl.textContent = details;
+    resultEl.style.display = "block";
+  }
+
+  function hideResult() {
+    resultEl.style.display = "none";
+  }
+
+  function requestDetails(payload) {
+    hideResult();
+    setStatus("Loading place details…", false, true);
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", apiUrl);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("X-CSRFToken", csrfToken);
+    xhr.onload = function () {
+      setStatus("", false, false);
+      var data;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch (e) {
+        setStatus("Invalid response from server.", true);
+        return;
+      }
+      if (data.success) {
+        showResult(data.place_name, data.details);
+      } else {
+        setStatus(data.error || "Something went wrong.", true);
+      }
+    };
+    xhr.onerror = function () {
+      setStatus("Network error. Please try again.", true);
+      setStatus("", false, false);
+    };
+    xhr.send(JSON.stringify(payload));
+  }
+
+  getDetailsBtn.addEventListener("click", function () {
+    var name = (placeInput.value || "").trim();
+    if (!name) {
+      setStatus("Enter a place name, use your location, or pick a recommended place.", true);
+      return;
+    }
+    requestDetails({ place_name: name });
+  });
+
+  document.getElementById("recommended-grid").addEventListener("click", function (e) {
+    var chip = e.target.closest(".recommended-chip");
+    if (!chip) return;
+    var place = chip.getAttribute("data-place");
+    if (place) requestDetails({ place_name: place });
+  });
+
+  useLocationBtn.addEventListener("click", function () {
+    if (!navigator.geolocation) {
+      setStatus("Geolocation is not supported by your browser.", true);
+      return;
+    }
+    setStatus("Getting your location…", false, true);
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        requestDetails({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      function () {
+        setStatus("Could not get your location. Try entering a place name.", true);
+      }
+    );
+  });
+})();
+  </script>
+</body>
+</html>

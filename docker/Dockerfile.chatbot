@@ -2,22 +2,19 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies for FAISS and sentence-transformers
+# Install system dependencies (no git - we don't install segment-anything here)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
-# Copy requirements files
+# Copy only service requirements (not root - avoids heavy translation deps and OOM)
 RUN mkdir -p Chatbot Agentic_RAG
 COPY Chatbot/requirements.txt ./Chatbot/requirements.txt
 COPY Agentic_RAG/requirements.txt ./Agentic_RAG/requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    (pip install --no-cache-dir -r Chatbot/requirements.txt || true) && \
+# Install Python dependencies (Chatbot + Agentic_RAG only; no torch/segment-anything)
+RUN pip install --no-cache-dir -r Chatbot/requirements.txt && \
     (pip install --no-cache-dir -r Agentic_RAG/requirements.txt || true)
 
 # Copy application code

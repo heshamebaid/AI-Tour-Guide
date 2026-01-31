@@ -8,14 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
-# Django requirements.txt may not exist, that's OK
-RUN mkdir -p Django
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir django djangorestframework || true
+# Install only Django deps (no root requirements - avoids segment-anything/git and fixes ModuleNotFoundError)
+RUN pip install --no-cache-dir django djangorestframework requests python-dotenv Pillow
 
 # Copy Django application
 COPY Django/ ./Django/

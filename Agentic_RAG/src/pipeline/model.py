@@ -330,34 +330,42 @@ if not OPENROUTER_API_KEY:
 chat_history = []  # Will store conversation turns
 
 def rag_query(user_query, top_k: int = 2):
-    # Auto-load documents if none are present
+    # Auto-load documents if none are present (may fail if sentence_transformers etc. missing)
     if not uploaded_documents or index is None:
         logger.info("No documents loaded, attempting to load from data directory...")
-        load_result = load_documents_from_data_dir()
-        
-        if not load_result["success"]:
-            return f"No documents available to answer questions. Error: {load_result.get('error', 'Unknown error')}"
-        else:
-            logger.info(f"Auto-loaded {load_result['files_processed']} files with {load_result['total_chunks']} chunks")
-    
-    # 1. Retrieve relevant chunks (limit k to keep prompt small)
-    try:
-        top_k = max(1, min(int(top_k), 5))
-    except Exception:
-        top_k = 2
-    query_embedding = _get_embeddings_model().encode([user_query])
-    D, I = index.search(query_embedding, k=top_k)
-    
-    # Get all current uploaded documents
-    retrieved_chunks = [uploaded_documents[i] for i in I[0]]
-    # Truncate context to avoid exceeding model context limits
-    retrieved_context = "\n".join(retrieved_chunks)
-    max_context_chars = 12000
-    if len(retrieved_context) > max_context_chars:
-        retrieved_context = retrieved_context[:max_context_chars] + "\n[Context truncated]"
+        try:
+            load_result = load_documents_from_data_dir()
+            if not load_result.get("success"):
+                logger.info("No RAG documents available; will answer from LLM general knowledge.")
+            else:
+                logger.info(f"Auto-loaded {load_result['files_processed']} files with {load_result['total_chunks']} chunks")
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("RAG load failed (%s); will answer from LLM general knowledge.", e)
 
-    # 2. Build messages for OpenRouter (limit history and input sizes)
-    messages = [{"role": "system", "content": "You are a helpful assistant. Answer questions based only on the provided context from uploaded documents."}]
+    # 1. Retrieve relevant chunks if we have an index; otherwise use LLM-only (no context)
+    if uploaded_documents and index is not None:
+        try:
+            top_k = max(1, min(int(top_k), 5))
+        except Exception:
+            top_k = 2
+        query_embedding = _get_embeddings_model().encode([user_query])
+        D, I = index.search(query_embedding, k=top_k)
+        retrieved_chunks = [uploaded_documents[i] for i in I[0]]
+        retrieved_context = "\n".join(retrieved_chunks)
+        max_context_chars = 12000
+        if len(retrieved_context) > max_context_chars:
+            retrieved_context = retrieved_context[:max_context_chars] + "\n[Context truncated]"
+        has_context = bool(retrieved_context.strip())
+    else:
+        retrieved_context = ""
+        has_context = False
+
+    # 2. Build messages for OpenRouter (use context when available, else LLM general knowledge)
+    if has_context:
+        system_content = "You are a helpful assistant. Answer questions based on the provided context from uploaded documents when possible; you may add general knowledge if the context is incomplete."
+    else:
+        system_content = "No document context was provided. Answer from your general knowledge. Be helpful and accurate."
+    messages = [{"role": "system", "content": system_content}]
     # Keep only the last 2 user+assistant turns
     if len(chat_history) > 4:
         history = chat_history[-4:]

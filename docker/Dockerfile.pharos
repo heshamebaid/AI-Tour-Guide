@@ -2,22 +2,21 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies for FAISS
+# Install system dependencies (no git - we don't install segment-anything here)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
+# Copy only service requirements (not root - avoids heavy translation deps and OOM)
 COPY talk_to_pharos_service/requirements.txt ./talk_to_pharos_service/requirements.txt
-COPY requirements.txt .
-# Copy Agentic_RAG requirements
 RUN mkdir -p Agentic_RAG
 COPY Agentic_RAG/requirements.txt ./Agentic_RAG/requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r talk_to_pharos_service/requirements.txt && \
+# Install Python dependencies (pharos + RAG: sentence-transformers, faiss-cpu + Agentic_RAG)
+RUN pip install --no-cache-dir -r talk_to_pharos_service/requirements.txt && \
+    pip install --no-cache-dir numpy pandas requests python-dotenv && \
+    pip install --no-cache-dir sentence-transformers faiss-cpu && \
     (pip install --no-cache-dir -r Agentic_RAG/requirements.txt || true)
 
 # Copy application code

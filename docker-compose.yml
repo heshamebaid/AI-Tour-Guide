@@ -1,25 +1,23 @@
-version: '3.8'
-
 services:
-  # Translation API Service
-  translation-api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.translation
-    container_name: translation-api
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./data:/app/data
-      - ./resources:/app/resources
-    environment:
-      - PYTHONUNBUFFERED=1
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # Translation API Service (disabled - image too large / export timeout; enable when needed)
+  # translation-api:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile.translation
+  #   container_name: translation-api
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./data:/app/data
+  #     - ./resources:/app/resources
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # Chatbot API Service
   chatbot-api:
@@ -35,8 +33,6 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
-    depends_on:
-      - translation-api
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -86,13 +82,14 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PHAROS_SERVICE_URL=http://pharos-service:8050
+      - PHAROS_PUBLIC_URL=http://localhost:8050
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
       - DJANGO_SETTINGS_MODULE=myproject.settings
     depends_on:
       - pharos-service
       - chatbot-api
-      - translation-api
     restart: unless-stopped
-    command: python manage.py runserver 0.0.0.0:9000
+    command: sh -c "python manage.py migrate --noinput && python manage.py shell -c \"from django.contrib.auth.models import User; User.objects.get_or_create(username='hesham', defaults={'email':'hesham@example.com','is_staff':True,'is_superuser':True}); u=User.objects.get(username='hesham'); u.set_password('12345678'); u.save(); print('User hesham ready')\" && python manage.py runserver 0.0.0.0:9000"
 
 networks:
   default:

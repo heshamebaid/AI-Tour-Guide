@@ -1,0 +1,163 @@
+.place-details-page {
+  max-width: 720px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.place-details-page h1 {
+  color: #eee;
+  margin-bottom: 0.5rem;
+  font-size: 1.75rem;
+}
+
+.place-details-intro {
+  color: #999;
+  margin-bottom: 2rem;
+  line-height: 1.5;
+}
+
+.place-option-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #333;
+}
+
+.place-option-section:last-of-type {
+  border-bottom: none;
+}
+
+.place-option-title {
+  color: #ddd;
+  font-size: 1.1rem;
+  margin: 0 0 0.35rem 0;
+  font-weight: 600;
+}
+
+.place-option-desc {
+  color: #888;
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem 0;
+}
+
+.recommended-section {
+  padding-bottom: 0;
+}
+
+.recommended-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.recommended-chip {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: #ccc;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.recommended-chip:hover {
+  background: #3a3a3a;
+  border-color: #c9a227;
+  color: #e8d48b;
+}
+
+.place-details-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.place-details-inputs input[type="text"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #2a2a2a;
+  color: #eee;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.place-details-inputs input[type="text"]::placeholder {
+  color: #888;
+}
+
+.place-details-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.place-details-actions button {
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.95rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.place-details-actions .btn-primary {
+  background: #c9a227;
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.place-details-actions .btn-primary:hover {
+  background: #d4ad2a;
+}
+
+.place-details-actions .btn-secondary {
+  background: #3a3a3a;
+  color: #ccc;
+}
+
+.place-details-actions .btn-secondary:hover {
+  background: #444;
+}
+
+.place-details-result {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: #252525;
+  border-radius: 10px;
+  border: 1px solid #333;
+  color: #ddd;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.place-details-result .result-place-name {
+  font-weight: 700;
+  color: #c9a227;
+  margin-bottom: 0.75rem;
+  font-size: 1.1rem;
+}
+
+.place-details-result .result-details {
+  color: #ccc;
+}
+
+.place-details-status {
+  margin-top: 0.75rem;
+  min-height: 1.5rem;
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.place-details-status.error {
+  color: #e57373;
+}
+
+.place-details-status.loading {
+  color: #c9a227;
+}
