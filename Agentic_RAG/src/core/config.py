@@ -2,14 +2,22 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()  # loads .env from project root
+# Single .env at repo root (4 levels up from Agentic_RAG/src/core/)
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+load_dotenv(_REPO_ROOT / ".env")
 
-# Get the project root directory (3 levels up from this file)
+# Get the Agentic_RAG root (3 levels up from this file)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
+# Same default as Place Details: OpenRouter model used by RAG, Pharos, Chatbot, Place Details
+_DEFAULT_OPENROUTER_MODEL = "liquid/lfm-2.5-1.2b-thinking:free"
+
+
 class Config:
-    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-    OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL")
+    OPENROUTER_API_KEY = os.getenv("OPEN_ROUTER_API_KEY") or os.getenv("OPENROUTER_API_KEY")
+    _raw_model = os.getenv("OPEN_ROUTER_MODEL") or os.getenv("OPENROUTER_MODEL") or _DEFAULT_OPENROUTER_MODEL
+    # Qwen free model has no endpoints on OpenRouter
+    OPENROUTER_MODEL = _DEFAULT_OPENROUTER_MODEL if _raw_model and "qwen" in _raw_model.lower() else _raw_model
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL")
     
     # Qdrant Configuration

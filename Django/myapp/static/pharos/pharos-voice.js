@@ -23,32 +23,65 @@
     onListeningChange: null,
   };
 
-  function findBestPharaohVoice() {
+  /**
+   * Pick a voice for the pharaoh. gender: "female" | "male" | null (default = male preference).
+   */
+  function findBestPharaohVoice(gender) {
     if (!canUseSpeechSynthesis) return null;
     const voices = global.speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return null;
 
-    const preferred = ["male", "deep", "low", "david", "daniel", "james", "rich"];
-    for (const voice of voices) {
+    const en = voices.filter((v) => v.lang.startsWith("en"));
+    if (!en.length) return voices[0];
+
+    const wantFemale = gender === "female";
+    const femaleKeywords = ["female", "susan", "karen", "zira", "samantha", "victoria", "kate", "sarah", "sally", "moira", "karen", "fiona"];
+    const maleKeywords = ["male", "deep", "low", "david", "daniel", "james", "rich", "alex"];
+
+    const preferred = wantFemale ? femaleKeywords : maleKeywords;
+    for (const voice of en) {
       const name = voice.name.toLowerCase();
-      if (voice.lang.startsWith("en") && preferred.some((k) => name.includes(k))) return voice;
+      if (preferred.some((k) => name.includes(k))) return voice;
     }
 
-    const en = voices.filter((v) => v.lang.startsWith("en"));
-    const female = ["susan", "karen", "zira", "samantha", "victoria", "kate", "sarah"];
-    const male = en.filter((v) => !female.some((k) => v.name.toLowerCase().includes(k)));
-    return (male.length ? male : en)[0] || voices[0];
+    if (wantFemale) {
+      const femaleVoices = en.filter((v) => {
+        const n = v.name.toLowerCase();
+        return femaleKeywords.some((k) => n.includes(k)) || (v.default && !maleKeywords.some((k) => n.includes(k)));
+      });
+      if (femaleVoices.length) return femaleVoices[0];
+      const byName = en.filter((v) => v.name.toLowerCase().includes("female"));
+      if (byName.length) return byName[0];
+    } else {
+      const maleVoices = en.filter((v) => !femaleKeywords.some((k) => v.name.toLowerCase().includes(k)));
+      if (maleVoices.length) return maleVoices[0];
+    }
+    return en[0] || voices[0];
   }
+
+  var currentVoiceGender = null;
 
   function initPharaohVoice() {
     if (!canUseSpeechSynthesis) return;
     if (global.speechSynthesis.getVoices().length === 0) {
       global.speechSynthesis.addEventListener("voiceschanged", () => {
-        pharaohVoice = findBestPharaohVoice();
+        pharaohVoice = findBestPharaohVoice(currentVoiceGender);
       }, { once: true });
     } else {
-      pharaohVoice = findBestPharaohVoice();
+      pharaohVoice = findBestPharaohVoice(currentVoiceGender);
     }
+  }
+
+  /**
+   * Set synthesis voice from persona. Call when user selects a persona.
+   * persona.voice_gender: "female" | "male" | null
+   */
+  function setVoiceForPersona(persona) {
+    if (!canUseSpeechSynthesis) return;
+    const gender = (persona && persona.voice_gender) || null;
+    if (gender === currentVoiceGender) return;
+    currentVoiceGender = gender;
+    pharaohVoice = findBestPharaohVoice(gender);
   }
 
   /**
@@ -61,7 +94,7 @@
     }
     try {
       global.speechSynthesis.cancel();
-      if (!pharaohVoice) pharaohVoice = findBestPharaohVoice();
+      if (!pharaohVoice) pharaohVoice = findBestPharaohVoice(currentVoiceGender);
 
       const utterance = new global.SpeechSynthesisUtterance(text);
       utterance.rate = options && options.rate != null ? options.rate : 0.85;
@@ -180,6 +213,7 @@
       speak,
       isListening: () => isListening,
       setCallbacks: (c) => { callbacks = Object.assign({}, callbacks, c); },
+      setVoiceForPersona,
     };
   }
 

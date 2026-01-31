@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Place details — AI Tour Guide</title>
   <link rel="stylesheet" href="{% static 'css/navbar.css' %}"/>
   <link rel="stylesheet" href="{% static 'css/place_details.css' %}"/>
@@ -10,48 +11,70 @@
   {% include 'partial/navbar.html' %}
 
   <div class="place-details-page">
-    <h1>Place details</h1>
-    <p class="place-details-intro">Choose how to explore: use your current location, type any place or address, or pick a famous site below.</p>
+    <header class="place-details-hero">
+      <span class="place-details-hero-icon" aria-hidden="true">🏛️</span>
+      <h1>Place details</h1>
+      <p class="place-details-intro">Discover visitor info for any location. Use your current position, type a place or address, or choose from famous sites.</p>
+    </header>
 
-    <section class="place-option-section">
-      <h2 class="place-option-title">Use current location</h2>
-      <p class="place-option-desc">Get details for where you are right now.</p>
-      <button type="button" id="use-location-btn" class="btn-secondary">Use my location</button>
-    </section>
+    <div class="place-details-cards">
+      <section class="place-card">
+        <div class="place-card-header">
+          <span class="place-card-icon" aria-hidden="true">📍</span>
+          <h2 class="place-option-title">Current location</h2>
+        </div>
+        <p class="place-option-desc">Get AI-generated details for where you are now.</p>
+        <button type="button" id="use-location-btn" class="btn btn-secondary">
+          <span class="btn-icon">📍</span> Use my location
+        </button>
+      </section>
 
-    <section class="place-option-section">
-      <h2 class="place-option-title">Write a location</h2>
-      <p class="place-option-desc">Enter any place name or address.</p>
-      <div class="place-details-inputs">
-        <input type="text" id="place-name-input" placeholder="e.g. Great Pyramid of Giza, Luxor Temple, or any address" />
-      </div>
-      <button type="button" id="get-details-btn" class="btn-primary">Get details</button>
-    </section>
+      <section class="place-card">
+        <div class="place-card-header">
+          <span class="place-card-icon" aria-hidden="true">✏️</span>
+          <h2 class="place-option-title">Search by name</h2>
+        </div>
+        <p class="place-option-desc">Enter any place name or address.</p>
+        <div class="place-details-inputs">
+          <input type="text" id="place-name-input" placeholder="e.g. Great Pyramid of Giza, Luxor Temple…" autocomplete="off" />
+        </div>
+        <button type="button" id="get-details-btn" class="btn btn-primary">
+          <span class="btn-icon">✨</span> Get details
+        </button>
+      </section>
 
-    <section class="place-option-section recommended-section">
-      <h2 class="place-option-title">Recommended locations</h2>
-      <p class="place-option-desc">Famous Egyptian and tourist sites — click to get details.</p>
-      <div class="recommended-grid" id="recommended-grid">
-        <button type="button" class="recommended-chip" data-place="Great Pyramid of Giza">Great Pyramid of Giza</button>
-        <button type="button" class="recommended-chip" data-place="Great Sphinx of Giza">Great Sphinx of Giza</button>
-        <button type="button" class="recommended-chip" data-place="Pyramids of Giza">Pyramids of Giza</button>
-        <button type="button" class="recommended-chip" data-place="Luxor Temple">Luxor Temple</button>
-        <button type="button" class="recommended-chip" data-place="Valley of the Kings">Valley of the Kings</button>
-        <button type="button" class="recommended-chip" data-place="Karnak Temple">Karnak Temple</button>
-        <button type="button" class="recommended-chip" data-place="Abu Simbel">Abu Simbel</button>
-        <button type="button" class="recommended-chip" data-place="Egyptian Museum Cairo">Egyptian Museum, Cairo</button>
-        <button type="button" class="recommended-chip" data-place="Temple of Hatshepsut">Temple of Hatshepsut</button>
-        <button type="button" class="recommended-chip" data-place="Philae Temple">Philae Temple</button>
-        <button type="button" class="recommended-chip" data-place="Cairo Citadel">Cairo Citadel</button>
-        <button type="button" class="recommended-chip" data-place="Alexandria Lighthouse">Lighthouse of Alexandria</button>
-      </div>
-    </section>
+      <section class="place-card recommended-section">
+        <div class="place-card-header">
+          <span class="place-card-icon" aria-hidden="true">⭐</span>
+          <h2 class="place-option-title">Recommended sites</h2>
+        </div>
+        <p class="place-option-desc">Famous Egyptian and tourist spots — click to explore.</p>
+        <div class="recommended-grid" id="recommended-grid">
+          <button type="button" class="recommended-chip" data-place="Great Pyramid of Giza">Great Pyramid of Giza</button>
+          <button type="button" class="recommended-chip" data-place="Great Sphinx of Giza">Great Sphinx of Giza</button>
+          <button type="button" class="recommended-chip" data-place="Pyramids of Giza">Pyramids of Giza</button>
+          <button type="button" class="recommended-chip" data-place="Luxor Temple">Luxor Temple</button>
+          <button type="button" class="recommended-chip" data-place="Valley of the Kings">Valley of the Kings</button>
+          <button type="button" class="recommended-chip" data-place="Karnak Temple">Karnak Temple</button>
+          <button type="button" class="recommended-chip" data-place="Abu Simbel">Abu Simbel</button>
+          <button type="button" class="recommended-chip" data-place="Egyptian Museum Cairo">Egyptian Museum, Cairo</button>
+          <button type="button" class="recommended-chip" data-place="Temple of Hatshepsut">Temple of Hatshepsut</button>
+          <button type="button" class="recommended-chip" data-place="Philae Temple">Philae Temple</button>
+          <button type="button" class="recommended-chip" data-place="Cairo Citadel">Cairo Citadel</button>
+          <button type="button" class="recommended-chip" data-place="Alexandria Lighthouse">Lighthouse of Alexandria</button>
+        </div>
+      </section>
+    </div>
 
     <div id="place-status" class="place-details-status" aria-live="polite"></div>
-    <div id="place-result" class="place-details-result" style="display: none;">
-      <div class="result-place-name" id="result-place-name"></div>
-      <div class="result-details" id="result-details"></div>
-    </div>
+
+    <article id="place-result" class="place-details-result" style="display: none;" aria-labelledby="result-place-name">
+      <div class="result-header">
+        <span class="result-badge">Place details</span>
+        <h2 class="result-place-name" id="result-place-name"></h2>
+      </div>
+      <div class="result-details result-details-sections" id="result-details"></div>
+    </article>
   </div>
 
   <script>
@@ -71,10 +94,61 @@
     statusEl.className = "place-details-status" + (isError ? " error" : "") + (isLoading ? " loading" : "");
   }
 
-  function showResult(placeName, details) {
+  function escapeHtml(s) {
+    var div = document.createElement("div");
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  var SECTION_HEADERS = [
+    { key: "intro", label: "Overview" },
+    { key: "significance", label: "Significance" },
+    { key: "what_to_see", label: "What to See" },
+    { key: "practical_tips", label: "Practical Tips" },
+    { key: "ancient_connection", label: "Ancient Connection" }
+  ];
+
+  function stripMarkdownAndEmoji(text) {
+    if (!text) return "";
+    var s = text.replace(/\*\*/g, "").replace(/\*/g, "");
+    s = s.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "");
+    return s.replace(/  +/g, " ").trim();
+  }
+
+  function sectionBodyToHtml(text) {
+    if (!text) return "";
+    var clean = stripMarkdownAndEmoji(text);
+    return escapeHtml(clean).replace(/\n\n+/g, "<br><br>").replace(/\n/g, "<br>");
+  }
+
+  function renderSections(sections) {
+    if (!sections || typeof sections !== "object") return "";
+    var out = [];
+    for (var i = 0; i < SECTION_HEADERS.length; i++) {
+      var sh = SECTION_HEADERS[i];
+      var body = sections[sh.key];
+      if (!body || typeof body !== "string" || !body.trim()) continue;
+      var bodyHtml = sectionBodyToHtml(body.trim());
+      out.push(
+        "<section class=\"result-section result-section-" + sh.key + "\" aria-labelledby=\"section-" + sh.key + "\">",
+        "  <h3 class=\"result-section-title\" id=\"section-" + sh.key + "\">" + escapeHtml(sh.label) + "</h3>",
+        "  <div class=\"result-section-body\">" + bodyHtml + "</div>",
+        "</section>"
+      );
+    }
+    return out.join("");
+  }
+
+  function showResult(placeName, detailsOrSections) {
     resultNameEl.textContent = placeName;
-    resultDetailsEl.textContent = details;
+    if (detailsOrSections && typeof detailsOrSections === "object" && !Array.isArray(detailsOrSections)) {
+      resultDetailsEl.innerHTML = renderSections(detailsOrSections);
+    } else {
+      var text = typeof detailsOrSections === "string" ? detailsOrSections : "";
+      resultDetailsEl.innerHTML = "<div class=\"result-details-fallback\"><p>" + sectionBodyToHtml(text || "No details.") + "</p></div>";
+    }
     resultEl.style.display = "block";
+    resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function hideResult() {
@@ -98,7 +172,7 @@
         return;
       }
       if (data.success) {
-        showResult(data.place_name, data.details);
+        showResult(data.place_name, data.sections || data.details);
       } else {
         setStatus(data.error || "Something went wrong.", true);
       }

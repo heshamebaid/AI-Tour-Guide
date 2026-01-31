@@ -19,8 +19,8 @@ AGENTIC_RAG_SRC_PATH = AGENTIC_RAG_PATH / "src"
 
 sys.path.insert(0, str(AGENTIC_RAG_SRC_PATH))
 
-# Load environment variables from Agentic_RAG
-env_path = AGENTIC_RAG_PATH / ".env"
+# Load environment from project root .env only
+env_path = AGENTIC_RAG_PATH.parent / ".env"
 if env_path.exists():
     load_dotenv(str(env_path))
 

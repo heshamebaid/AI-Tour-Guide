@@ -16,6 +16,8 @@ import requests
 PHAROS_SERVICE_URL = os.environ.get("PHAROS_SERVICE_URL", "http://localhost:8050").rstrip("/")
 # URL the browser can reach (e.g. localhost:8050); Docker internal hostnames like pharos-service:8050 don't work in the browser
 PHAROS_PUBLIC_URL = os.environ.get("PHAROS_PUBLIC_URL", PHAROS_SERVICE_URL).rstrip("/")
+# Chatbot API (use service name in Docker: http://chatbot-api:8080)
+CHATBOT_SERVICE_URL = os.environ.get("CHATBOT_SERVICE_URL", "http://localhost:8080").rstrip("/")
 
 def login_view(request):
     if request.method=='POST':
@@ -73,7 +75,7 @@ def upload_image(request):
         form = ImageUploadForm(request.POST, request.FILES)
         if form.is_valid():
             instance = form.save()
-            api_url = "http://localhost:8000/translate"
+            api_url = (os.environ.get("TRANSLATION_SERVICE_URL") or "http://localhost:8000").rstrip("/") + "/translate"
             try:
                 with open(instance.image.path, "rb") as img_file:
                     files = {"file": (instance.image.name, img_file, "image/jpeg")}
@@ -175,9 +177,9 @@ def chatbot_view(request):
                     web_info = None
                     documents_found = 0
             else:
-                # RAG service not available - try fallback API
+                # RAG service not available - try fallback Chatbot API
                 try:
-                    api_url = "http://localhost:8080/chat"
+                    api_url = f"{CHATBOT_SERVICE_URL}/chat"
                     api_response = requests.post(api_url, json={"query": user_input}, timeout=30)
                     if api_response.ok:
                         bot_response = api_response.json().get("answer", "No answer")
@@ -189,7 +191,24 @@ def chatbot_view(request):
                             "documents_found": 0
                         }
                     else:
-                        error_msg = f"API Error {api_response.status_code}: The LLM service is unavailable. Please check your OPENROUTER_API_KEY configuration."
+                        try:
+                            body = api_response.json()
+                            detail = body.get("detail", body.get("message", api_response.text or ""))
+                            if isinstance(detail, list):
+                                detail = detail[0].get("msg", str(detail)) if detail else ""
+                        except Exception:
+                            detail = api_response.text or f"HTTP {api_response.status_code}"
+                        if api_response.status_code == 500 and (
+                            "OPENROUTER" in (detail or "").upper()
+                            or "api key" in (detail or "").lower()
+                            or "open_router" in (detail or "").lower()
+                        ):
+                            error_msg = (
+                                f"API Error {api_response.status_code}: The LLM service is unavailable. "
+                                "Please check your OPEN_ROUTER_API_KEY in the project root .env and restart chatbot-api."
+                            )
+                        else:
+                            error_msg = f"API Error {api_response.status_code}: {detail}"
                         response_data = {
                             "success": False,
                             "error": error_msg,
@@ -197,7 +216,10 @@ def chatbot_view(request):
                         }
                         bot_response = error_msg
                 except requests.exceptions.ConnectionError:
-                    error_msg = "Cannot connect to the AI service. Please check if the server is running."
+                    error_msg = (
+                        "Cannot connect to the AI service. "
+                        "If using Docker: run 'docker-compose up -d --force-recreate django-web' and ensure chatbot-api is running."
+                    )
                     response_data = {
                         "success": False,
                         "error": error_msg,
@@ -385,8 +407,10 @@ def chatbot_stream(request):
 
 
 def talk_to_pharos_view(request):
+    visitor_name = request.user.username if request.user.is_authenticated else "Guest"
     context = {
         "pharos_service_url": PHAROS_PUBLIC_URL,
+        "visitor_name": visitor_name,
     }
     return render(request, 'pharos/talk_to_pharos.html', context)
 

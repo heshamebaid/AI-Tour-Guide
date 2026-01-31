@@ -7,20 +7,16 @@
     </div>
 
     <div class="nav-links">
-        <a href="{% url 'home' %}">Home</a>
-        <a href="{% url 'translator' %}">Translator</a>
-        <a href="{% url 'chatbot' %}">Chatbot</a>
-        <a href="{% url 'talk_to_pharos' %}" class="highlight-link">Talk To Pharos</a>
-        <a href="{% url 'place_details' %}">Place details</a>
+        <a href="{% url 'home' %}" class="{% if request.resolver_match.url_name == 'home' %}active{% endif %}">Home</a>
+        <a href="{% url 'translator' %}" class="{% if request.resolver_match.url_name == 'translator' %}active{% endif %}">Translator</a>
+        <a href="{% url 'chatbot' %}" class="{% if request.resolver_match.url_name == 'chatbot' or request.resolver_match.url_name == 'chatbot_new' %}active{% endif %}">Chatbot</a>
+        <a href="{% url 'talk_to_pharos' %}" class="{% if request.resolver_match.url_name == 'talk_to_pharos' %}active{% endif %}">Talk To Pharos</a>
+        <a href="{% url 'place_details' %}" class="{% if request.resolver_match.url_name == 'place_details' %}active{% endif %}">Place details</a>
     </div>
 
     <div class="nav-right">
 <div class="welcome">
-    {% if request.user.is_authenticated %}
-        WELCOME {{ request.user.username }}
-    {% else %}
-        WELCOME Guest
-    {% endif %}
+    Welcome, {% if request.user.is_authenticated %}{{ request.user.username }}{% else %}Guest{% endif %}
 </div>
       <a href="{% url 'login' %}" class="logout">Sign Out</a>
     </div>

@@ -46,8 +46,8 @@ body {
 }
 
 .nav-links a:hover,
-.nav-links .highlight-link {
-  color: #fcd34d;
+.nav-links a.active {
+  color: #60a5fa;
 }
 
 .nav-right {
@@ -68,11 +68,11 @@ body {
   font-weight: 600;
   font-size: 1rem;
   letter-spacing: 1px;
-  color: #b19cd9;
+  color: #60a5fa;
   transition: color 0.25s ease;
 }
 
 .logout:hover {
-  color: #d3c6ff;
+  color: #93c5fd;
 }
 

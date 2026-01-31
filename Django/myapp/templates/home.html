@@ -9,8 +9,10 @@
         {% include 'partial/navbar.html' %}
         <div class="home-title" id="home-title"></div>
           <div class="button-container">
-        <button onclick="window.location.href='/translator'" class="action-button">Translate</button>
-        <button onclick="window.location.href='/chatbot/new'" class="action-button">Chatbot</button>
+        <button onclick="window.location.href='{% url 'translator' %}'" class="action-button">Translate</button>
+        <button onclick="window.location.href='{% url 'chatbot_new' %}'" class="action-button">Chatbot</button>
+        <button onclick="window.location.href='{% url 'talk_to_pharos' %}'" class="action-button">Talk To Pharos</button>
+        <button onclick="window.location.href='{% url 'place_details' %}'" class="action-button">Place details</button>
           </div>
         <script src="{% static 'js/home.js' %}"></script>
     </body>

@@ -21,10 +21,10 @@ PROJECT_ROOT = SERVICE_DIR.parent
 RAG_SRC = PROJECT_ROOT / "Agentic_RAG" / "src"
 sys.path.append(str(RAG_SRC))
 
-# Load env vars from either Agentic_RAG/.env or Agentic_RAG/src/.env to reach OpenRouter creds
-for env_candidate in (RAG_SRC / ".env", PROJECT_ROOT / "Agentic_RAG" / ".env"):
-    if env_candidate.exists():
-        load_dotenv(dotenv_path=env_candidate)
+# Load env from project root .env only
+root_env = PROJECT_ROOT / ".env"
+if root_env.exists():
+    load_dotenv(dotenv_path=root_env)
 
 from pipeline.model import (  # type: ignore  # pylint: disable=wrong-import-position
     rag_query,

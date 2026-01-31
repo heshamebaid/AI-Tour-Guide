@@ -40,6 +40,7 @@ class PersonaResponse(BaseModel):
     sample_questions: List[str]
     avatar_asset: Optional[str]
     voice_hint: Optional[str]
+    voice_gender: Optional[str] = None  # "female" | "male"; for speech synthesis
 
 
 class ConverseResponse(BaseModel):

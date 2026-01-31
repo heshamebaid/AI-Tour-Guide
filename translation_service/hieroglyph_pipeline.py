@@ -38,18 +38,11 @@ if __package__ in (None, ""):
 PACKAGE_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_ROOT.parent
 RAG_DIR = REPO_ROOT / "Agentic_RAG"
-RAG_ENV_LOCATIONS = [
-    RAG_DIR / ".env",
-    RAG_DIR / "src" / ".env",
-]
 
-# Ensure OPEN_ROUTER_API_KEY is loaded for the pipeline (reads Agentic_RAG/.env)
-for env_path in RAG_ENV_LOCATIONS:
-    try:
-        if env_path.exists():
-            load_dotenv(env_path)
-    except Exception:
-        pass
+# Single .env at repo root
+root_env = REPO_ROOT / ".env"
+if root_env.exists():
+    load_dotenv(root_env)
 
 # Configure logging
 logging.basicConfig(
@@ -99,7 +92,7 @@ class HieroglyphConfig:
     
     # Story generation
     STORY_ENABLED = True
-    LLM_MODEL = "qwen/qwen3-30b-a3b:free"
+    LLM_MODEL = "liquid/lfm-2.5-1.2b-thinking:free"
     MAX_TOKENS = 3000  # Maximum tokens for LLM response (balanced length for clear, concise stories)
     STORY_PROMPT = """You are a distinguished Egyptologist and expert tour guide with deep knowledge of ancient Egyptian history, culture, and hieroglyphic writing. You are leading a group of educated visitors through a temple or tomb, explaining a newly discovered hieroglyphic inscription. Your expertise spans multiple dynasties, religious practices, and cultural contexts of ancient Egypt.
 

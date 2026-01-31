@@ -17,8 +17,11 @@ import uuid
 import json
 from dotenv import load_dotenv
 
-# Import pipeline classes (relative for uvicorn translation_service.api_server)
-from .hieroglyph_pipeline import HieroglyphPipeline, HieroglyphConfig
+# Import pipeline: package path in Docker (PYTHONPATH=/app); fallback for local/sibling import
+try:
+    from translation_service.hieroglyph_pipeline import HieroglyphPipeline, HieroglyphConfig
+except ImportError:
+    from .hieroglyph_pipeline import HieroglyphPipeline, HieroglyphConfig
 
 # Configure logging
 logging.basicConfig(
@@ -264,13 +267,12 @@ async def startup():
         os.makedirs("data", exist_ok=True)
         
         # Load OpenRouter key from RAG/.env or RAG/src/.env
-        base_dir = os.path.abspath(os.path.dirname(__file__))
-        for env_path in (
-            os.path.join(base_dir, 'RAG', '.env'),
-            os.path.join(base_dir, 'RAG', 'src', '.env'),
-        ):
-            if os.path.exists(env_path):
-                load_dotenv(env_path)
+        # Single .env at repo root
+        base_dir = Path(__file__).resolve().parent
+        repo_root = base_dir.parent
+        env_path = repo_root / ".env"
+        if env_path.exists():
+            load_dotenv(env_path)
         
         # Initialize configuration
         config = HieroglyphConfig()

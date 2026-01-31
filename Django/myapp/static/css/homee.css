@@ -20,22 +20,26 @@ body {
 
 .button-container {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 1rem;
   margin-top: 29rem;
 }
 
 .action-button {
-  background-color: #1a1a1a;
-  border: none;
-  color: #b19cd9;
+  background-color: #1a2332;
+  border: 1px solid #374151;
+  color: #60a5fa;
   padding: 1.2rem 2.3rem;
-  margin: 0 3rem;
+  margin: 0 0.5rem;
   font-size: 1.3rem;
   cursor: pointer;
   border-radius: 0.5rem;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .action-button:hover {
-  color: #b19cd9;
+  color: #93c5fd;
+  border-color: #3b82f6;
+  background-color: #252d3d;
 }

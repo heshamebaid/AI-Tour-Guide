@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Tour Guide - Chat</title>
-  <link rel="preload" as="style" href="{% static 'css/navbar.css' %}" onload="this.rel = 'stylesheet'" />
+  <title>Chatbot — AI Tour Guide</title>
+  <link rel="stylesheet" href="{% static 'css/navbar.css' %}"/>
   <style>
     * {
       margin: 0;
@@ -14,23 +14,25 @@
     }
     
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0d0d1a;
+      font-family: "Montserrat", sans-serif;
+      background: linear-gradient(to bottom right, #0f1419, #1a2332);
       color: #e0e0e0;
-      height: 100vh;
-      overflow: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
     
     .chat-app {
       display: flex;
-      height: 100vh;
+      flex: 1;
+      min-height: calc(100vh - 64px);
     }
     
     /* Sidebar */
     .sidebar {
       width: 280px;
-      background: #1a1a2e;
-      border-right: 1px solid #2a2a4e;
+      background: #1a2332;
+      border-right: 1px solid #374151;
       display: flex;
       flex-direction: column;
       transition: width 0.3s ease;
@@ -43,14 +45,14 @@
     
     .sidebar-header {
       padding: 20px;
-      border-bottom: 1px solid #2a2a4e;
+      border-bottom: 1px solid #374151;
     }
     
     .new-chat-btn {
       width: 100%;
       padding: 12px 20px;
-      background: linear-gradient(135deg, #c9a227 0%, #d4af37 100%);
-      color: #1a1a2e;
+      background: #3b82f6;
+      color: #fff;
       border: none;
       border-radius: 8px;
       font-weight: bold;
@@ -83,7 +85,7 @@
     .chat-history-item {
       padding: 12px 15px;
       margin: 5px 0;
-      background: #16213e;
+      background: #252d3d;
       border-radius: 8px;
       cursor: pointer;
       transition: background 0.2s ease;
@@ -91,12 +93,12 @@
     }
     
     .chat-history-item:hover {
-      background: #1e2a4a;
+      background: #2d3748;
     }
     
     .chat-history-item.active {
-      border-left-color: #c9a227;
-      background: #1e2a4a;
+      border-left-color: #3b82f6;
+      background: #2d3748;
     }
     
     .chat-history-item .title {
@@ -117,13 +119,13 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      background: #0d0d1a;
+      background: transparent;
     }
     
     .chat-header {
       padding: 15px 25px;
-      background: #1a1a2e;
-      border-bottom: 1px solid #2a2a4e;
+      background: #1a2332;
+      border-bottom: 1px solid #374151;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -137,7 +139,7 @@
     
     .chat-header-title h1 {
       font-size: 1.2em;
-      color: #c9a227;
+      color: #3b82f6;
     }
     
     .toggle-sidebar-btn {
@@ -150,7 +152,7 @@
     }
     
     .toggle-sidebar-btn:hover {
-      color: #c9a227;
+      color: #3b82f6;
     }
     
     /* Messages Area */
@@ -196,11 +198,11 @@
     }
     
     .user-message .message-avatar {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
     }
     
     .bot-message .message-avatar {
-      background: linear-gradient(135deg, #c9a227 0%, #d4af37 100%);
+      background: #3b82f6;
     }
     
     .message-author {
@@ -208,8 +210,8 @@
       font-size: 0.9em;
     }
     
-    .user-message .message-author { color: #667eea; }
-    .bot-message .message-author { color: #c9a227; }
+    .user-message .message-author { color: #818cf8; }
+    .bot-message .message-author { color: #3b82f6; }
     
     .message-content {
       padding: 15px 20px;
@@ -219,12 +221,12 @@
     }
     
     .user-message .message-content {
-      background: #1e2a4a;
+      background: #2d3748;
     }
     
     .bot-message .message-content {
-      background: #16213e;
-      border-left: 3px solid #c9a227;
+      background: #252d3d;
+      border-left: 3px solid #3b82f6;
     }
     
     /* Error Message Style */
@@ -246,11 +248,11 @@
     .sources-section {
       margin-top: 15px;
       padding-top: 15px;
-      border-top: 1px solid #2a2a4e;
+      border-top: 1px solid #374151;
     }
     
     .sources-title {
-      color: #c9a227;
+      color: #3b82f6;
       font-size: 0.85em;
       margin-bottom: 10px;
       display: flex;
@@ -259,24 +261,24 @@
     }
     
     .source-item {
-      background: #0f0f23;
+      background: #1e1e1e;
       padding: 10px 12px;
       margin: 5px 0;
       border-radius: 6px;
       font-size: 0.8em;
       color: #a0a0a0;
-      border-left: 2px solid #444;
+      border-left: 2px solid #4b5563;
     }
     
     /* Images Section */
     .images-section {
       margin-top: 15px;
       padding-top: 15px;
-      border-top: 1px solid #2a2a4e;
+      border-top: 1px solid #374151;
     }
     
     .images-title {
-      color: #c9a227;
+      color: #3b82f6;
       font-size: 0.85em;
       margin-bottom: 10px;
     }
@@ -340,7 +342,7 @@
     
     .welcome-title {
       font-size: 1.8em;
-      color: #c9a227;
+      color: #3b82f6;
       margin-bottom: 15px;
     }
     
@@ -356,8 +358,8 @@
     }
     
     .suggestion-btn {
-      background: #16213e;
-      border: 1px solid #2a2a4e;
+      background: #252d3d;
+      border: 1px solid #374151;
       padding: 15px;
       border-radius: 10px;
       color: #e0e0e0;
@@ -367,8 +369,8 @@
     }
     
     .suggestion-btn:hover {
-      background: #1e2a4a;
-      border-color: #c9a227;
+      background: #2d3748;
+      border-color: #3b82f6;
     }
     
     .suggestion-btn .icon {
@@ -378,8 +380,8 @@
     /* Input Area */
     .input-area {
       padding: 20px;
-      background: #1a1a2e;
-      border-top: 1px solid #2a2a4e;
+      background: #1a2332;
+      border-top: 1px solid #374151;
     }
     
     .input-wrapper {
@@ -399,8 +401,8 @@
       align-items: center;
       gap: 6px;
       padding: 6px 12px;
-      background: #16213e;
-      border: 1px solid #2a2a4e;
+      background: #252d3d;
+      border: 1px solid #374151;
       border-radius: 20px;
       cursor: pointer;
       font-size: 0.85em;
@@ -409,13 +411,13 @@
     }
     
     .feature-toggle:hover {
-      border-color: #444;
+      border-color: #4b5563;
     }
     
     .feature-toggle.active {
-      background: #1e3a5f;
-      border-color: #c9a227;
-      color: #c9a227;
+      background: #2d3748;
+      border-color: #3b82f6;
+      color: #3b82f6;
     }
     
     .feature-toggle input {
@@ -453,8 +455,8 @@
       width: 100%;
       padding: 15px 20px;
       padding-right: 50px;
-      background: #16213e;
-      border: 1px solid #2a2a4e;
+      background: #252d3d;
+      border: 1px solid #374151;
       border-radius: 12px;
       color: white;
       font-size: 1em;
@@ -466,7 +468,7 @@
     
     .chat-input:focus {
       outline: none;
-      border-color: #c9a227;
+      border-color: #3b82f6;
     }
     
     .chat-input::placeholder {
@@ -475,8 +477,8 @@
     
     .send-btn {
       padding: 14px 24px;
-      background: linear-gradient(135deg, #c9a227 0%, #d4af37 100%);
-      color: #1a1a2e;
+      background: #3b82f6;
+      color: #fff;
       border: none;
       border-radius: 12px;
       font-weight: bold;
@@ -493,7 +495,7 @@
     }
     
     .send-btn:disabled {
-      background: #444;
+      background: #4b5563;
       cursor: not-allowed;
     }
     
@@ -510,7 +512,7 @@
       display: flex;
       gap: 4px;
       padding: 15px 20px;
-      background: #16213e;
+      background: #252d3d;
       border-radius: 12px;
       margin-left: 42px;
       width: fit-content;
@@ -519,7 +521,7 @@
     .typing-dot {
       width: 8px;
       height: 8px;
-      background: #c9a227;
+      background: #3b82f6;
       border-radius: 50%;
       animation: typing 1.4s infinite;
     }
@@ -538,11 +540,11 @@
     }
     
     ::-webkit-scrollbar-track {
-      background: #1a1a2e;
+      background: #1a2332;
     }
     
     ::-webkit-scrollbar-thumb {
-      background: #444;
+      background: #4b5563;
       border-radius: 3px;
     }
     
@@ -576,6 +578,7 @@
   </style>
 </head>
 <body>
+  {% include 'partial/navbar.html' %}
   <div class="chat-app">
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">

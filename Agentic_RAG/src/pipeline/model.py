@@ -1,3 +1,9 @@
+# Disable TF/Flax before any transformers/sentence_transformers import
+import os
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 try:
     from sentence_transformers import SentenceTransformer
     SENTENCE_TRANSFORMER_IMPORT_ERROR = None
@@ -12,9 +18,6 @@ except ImportError as exc:
     FAISS_IMPORT_ERROR = exc
 import numpy as np
 import requests
-import os
-os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
-os.environ.setdefault("TRANSFORMERS_NO_FLAX", "1")
 from dotenv import load_dotenv
 import json
 from pathlib import Path
@@ -27,18 +30,14 @@ except ImportError as exc:
     FITZ_IMPORT_ERROR = exc
 import logging
 
-# Load API key from both potential locations:
-# 1) Agentic_RAG/src/.env
-# 2) Agentic_RAG/.env (project-level)
-current_dir = os.path.dirname(__file__)
-env_src = os.path.normpath(os.path.join(current_dir, "../.env"))      # Agentic_RAG/src/.env
-env_root = os.path.normpath(os.path.join(current_dir, "../../.env"))   # Agentic_RAG/.env
-for path in (env_src, env_root):
-    try:
-        if os.path.exists(path):
-            load_dotenv(dotenv_path=path)
-    except Exception:
-        pass
+# Load .env: project root first (Docker mounts .env at /app/.env), then Agentic_RAG/.env
+_agentic_root = Path(__file__).resolve().parents[2]  # Agentic_RAG/src -> Agentic_RAG
+_project_root_env = _agentic_root.parent / ".env"
+_agentic_env = _agentic_root / ".env"
+if _project_root_env.exists():
+    load_dotenv(dotenv_path=_project_root_env)
+if _agentic_env.exists():
+    load_dotenv(dotenv_path=_agentic_env)  # can override with local Agentic_RAG/.env
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -228,10 +227,11 @@ def _get_embeddings_model():
     global model_embeddings  # noqa: PLW0603
     if model_embeddings is None:
         if SentenceTransformer is None:
+            err = SENTENCE_TRANSFORMER_IMPORT_ERROR
             raise RuntimeError(
-                "SentenceTransformer dependencies are missing. "
-                "Install sentence-transformers with its TensorFlow extras or tf-keras."
-            ) from SENTENCE_TRANSFORMER_IMPORT_ERROR
+                "SentenceTransformer not available. Install: pip install sentence-transformers faiss-cpu. "
+                f"Original error: {err}"
+            ) from err
         model_embeddings = SentenceTransformer('all-MiniLM-L6-v2')
     return model_embeddings
 
@@ -321,10 +321,20 @@ def get_document_stats() -> Dict[str, Any]:
 
 # OpenRouter Setup
 OPENROUTER_API_KEY = os.getenv("OPEN_ROUTER_API_KEY")
-OPENROUTER_MODEL = os.getenv("OPEN_ROUTER_MODEL") or os.getenv("LLM_MODEL") or "qwen/qwen3-30b-a3b:free"
+_raw_model = os.getenv("OPEN_ROUTER_MODEL") or os.getenv("LLM_MODEL") or "liquid/lfm-2.5-1.2b-thinking:free"
+FALLBACK_MODEL = "liquid/lfm-2.5-1.2b-thinking:free"
+# When primary free model hits daily limit, try another free model once
+RATE_LIMIT_FALLBACK_MODEL = "meta-llama/llama-3.2-3b-instruct:free"
+# Qwen free model has no endpoints on OpenRouter; force Liquid
+if _raw_model and "qwen" in _raw_model.lower():
+    OPENROUTER_MODEL = FALLBACK_MODEL
+    logger.info("Using %s (qwen free model has no endpoints)", OPENROUTER_MODEL)
+else:
+    OPENROUTER_MODEL = _raw_model or FALLBACK_MODEL
 url = "https://openrouter.ai/api/v1/chat/completions"
 if not OPENROUTER_API_KEY:
     logger.warning("OPEN_ROUTER_API_KEY not found in environment variables. RAG queries will return retrieved context only.")
+
 
 # Chat History 
 chat_history = []  # Will store conversation turns
@@ -392,25 +402,110 @@ def rag_query(user_query, top_k: int = 2):
         chat_history.append({"role": "assistant", "content": answer})
         return answer
 
-    # 3. Send request to OpenRouter
+    # 3. Send request to OpenRouter (retry with fallback model if "No endpoints found")
+    model_to_use = OPENROUTER_MODEL
+    # Never send qwen (no free endpoints on OpenRouter); resolve at request time
+    if model_to_use and "qwen" in (model_to_use or "").lower():
+        model_to_use = FALLBACK_MODEL
+        logger.debug("Using fallback model (qwen has no endpoints): %s", model_to_use)
     response = requests.post(
-        url="https://openrouter.ai/api/v1/chat/completions",
+        url,
         headers={
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
         },
         data=json.dumps({
-            "model": OPENROUTER_MODEL,
+            "model": model_to_use,
             "messages": messages,
-        })
+        }),
+        timeout=60,
     )
 
+    # If "No endpoints found" for this model, retry once with Liquid free model
+    err_msg = ""
+    if response.text:
+        try:
+            err_body = response.json()
+            err_msg = (err_body.get("error") or {}).get("message", response.text or "") or ""
+        except Exception:  # pylint: disable=broad-except
+            err_msg = response.text or ""
+    if not response.ok and model_to_use != FALLBACK_MODEL:
+        if "no endpoints found" in (err_msg or "").lower() or "no endpoints found" in (response.text or "").lower():
+            logger.warning("Model %s unavailable (%s), retrying with %s", model_to_use, err_msg[:80], FALLBACK_MODEL)
+            response = requests.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                data=json.dumps({
+                    "model": FALLBACK_MODEL,
+                    "messages": messages,
+                }),
+                timeout=60,
+            )
+            model_to_use = FALLBACK_MODEL
+
+    # If primary/fallback hit daily free limit, retry once with another free model
+    is_rate_limited = False
+    if not response.ok and response.text:
+        try:
+            err_body = response.json()
+            err_msg = (err_body.get("error") or {}).get("message", response.text or "") or ""
+            is_rate_limited = (
+                response.status_code == 429 or "free-models-per-day" in (err_msg or "").lower()
+            )
+        except Exception:  # pylint: disable=broad-except
+            is_rate_limited = response.status_code == 429
+    if is_rate_limited and model_to_use != RATE_LIMIT_FALLBACK_MODEL:
+        logger.warning(
+            "Daily free limit reached for %s (see OpenRouter credits). Retrying with %s.",
+            model_to_use,
+            RATE_LIMIT_FALLBACK_MODEL,
+        )
+        response = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {OPEN_ROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            data=json.dumps({
+                "model": RATE_LIMIT_FALLBACK_MODEL,
+                "messages": messages,
+            }),
+            timeout=60,
+        )
+        model_to_use = RATE_LIMIT_FALLBACK_MODEL
+
     # 4. Parse response
-    answer_json = response.json()
     try:
-        answer = answer_json["choices"][0]["message"]["content"]
-    except Exception:
-        answer = f"Error: {answer_json}"
+        if response.ok:
+            answer_json = response.json()
+            answer = answer_json["choices"][0]["message"]["content"]
+        else:
+            err_body = response.json() if response.text else {}
+            err_msg = (err_body.get("error") or {}).get("message", response.text or f"HTTP {response.status_code}") or ""
+            # User-friendly message for rate limit / free tier
+            if response.status_code == 429 or "free-models-per-day" in (err_msg or "").lower():
+                logger.info(
+                    "OpenRouter rate limit: model=%s status=%s message=%s",
+                    model_to_use,
+                    response.status_code,
+                    (err_msg or response.text or "")[:200],
+                )
+                answer = (
+                    "The daily free limit for this model has been reached. "
+                    "You can add credits at https://openrouter.ai/credits to unlock more requests, or try again tomorrow."
+                )
+            elif "no endpoints found" in (err_msg or "").lower():
+                answer = (
+                    "The configured AI model is not available right now. "
+                    "Set OPEN_ROUTER_MODEL=liquid/lfm-2.5-1.2b-thinking:free in your .env and restart the service."
+                )
+            else:
+                answer = f"Error: {(err_msg or str(response.status_code))[:300]}"
+    except Exception as e:
+        answer = f"Error: {str(e)[:300]}"
 
     # 5. Save this turn into history
     chat_history.append({"role": "user", "content": user_query})

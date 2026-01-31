@@ -69,8 +69,12 @@ docker-compose up
 # Check service status
 docker-compose ps
 
-# Check logs
+# Check logs (run from project root D:\AI-Tour-Guide)
 docker-compose logs -f
+# Or last 100 lines for specific services:
+docker-compose logs --tail=100 chatbot-api pharos-service django-web place-details-service
+# Follow one service:
+docker-compose logs -f chatbot-api
 
 # Test health endpoints
 curl http://localhost:8000/health  # Translation API

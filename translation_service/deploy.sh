@@ -39,7 +39,7 @@ CLUSTERING_MIN_SAMPLES: 1
 
 # Story generation
 STORY_ENABLED: true
-LLM_MODEL: "qwen/qwen3-30b-a3b:free"
+LLM_MODEL: "liquid/lfm-2.5-1.2b-thinking:free"
 EOT
 fi
 

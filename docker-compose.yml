@@ -1,23 +1,26 @@
 services:
-  # Translation API Service (disabled - image too large / export timeout; enable when needed)
-  # translation-api:
-  #   build:
-  #     context: .
-  #     dockerfile: docker/Dockerfile.translation
-  #   container_name: translation-api
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     - ./data:/app/data
-  #     - ./resources:/app/resources
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  # Translation API Service (hieroglyph image → story; build can be slow due to heavy deps)
+  translation-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.translation
+    container_name: translation-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./resources:/app/resources
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app:/app/translation_service
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   # Chatbot API Service
   chatbot-api:
@@ -27,12 +30,16 @@ services:
     container_name: chatbot-api
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     volumes:
+      - ./.env:/app/.env:ro
       - ./Agentic_RAG:/app/Agentic_RAG
       - ./Chatbot:/app/Chatbot
     environment:
       - PYTHONUNBUFFERED=1
       - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - OPEN_ROUTER_MODEL=${OPEN_ROUTER_MODEL:-liquid/lfm-2.5-1.2b-thinking:free}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -48,9 +55,14 @@ services:
     container_name: place-details-service
     ports:
       - "8060:8060"
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env:ro
     environment:
       - PYTHONUNBUFFERED=1
       - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - OPEN_ROUTER_MODEL=${OPEN_ROUTER_MODEL:-liquid/lfm-2.5-1.2b-thinking:free}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8060/health"]
@@ -66,13 +78,17 @@ services:
     container_name: pharos-service
     ports:
       - "8050:8050"
+    env_file:
+      - .env
     volumes:
+      - ./.env:/app/.env:ro
       - ./Agentic_RAG:/app/Agentic_RAG
       - ./talk_to_pharos_service:/app/talk_to_pharos_service
       - ./Agentic_RAG/src/controllers/data:/app/Agentic_RAG/src/controllers/data
     environment:
       - PYTHONUNBUFFERED=1
       - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - OPEN_ROUTER_MODEL=${OPEN_ROUTER_MODEL:-liquid/lfm-2.5-1.2b-thinking:free}
       - PHAROS_HOST=0.0.0.0
       - PHAROS_PORT=8050
     depends_on:
@@ -101,12 +117,15 @@ services:
       - PYTHONUNBUFFERED=1
       - PHAROS_SERVICE_URL=http://pharos-service:8050
       - PHAROS_PUBLIC_URL=http://localhost:8050
+      - CHATBOT_SERVICE_URL=http://chatbot-api:8080
       - PLACE_DETAILS_SERVICE_URL=http://place-details-service:8060
+      - TRANSLATION_SERVICE_URL=http://translation-api:8000
       - DJANGO_SETTINGS_MODULE=myproject.settings
     depends_on:
       - pharos-service
       - chatbot-api
       - place-details-service
+      - translation-api
     restart: unless-stopped
     command: sh -c "python manage.py migrate --noinput && python manage.py shell -c \"from django.contrib.auth.models import User; User.objects.get_or_create(username='hesham', defaults={'email':'hesham@example.com','is_staff':True,'is_superuser':True}); u=User.objects.get(username='hesham'); u.set_password('12345678'); u.save(); print('User hesham ready')\" && python manage.py runserver 0.0.0.0:9000"
 

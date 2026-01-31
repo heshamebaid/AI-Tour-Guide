@@ -2,16 +2,20 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Talk To Pharos</title>
-  <link rel="preload" as="style" href="{% static 'css/navbar.css' %}" onload="this.rel='stylesheet'">
-  <link rel="preload" as="style" href="{% static 'pharos/talk_to_pharos.css' %}" onload="this.rel='stylesheet'">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Talk To Pharos — AI Tour Guide</title>
+  <link rel="stylesheet" href="{% static 'css/navbar.css' %}"/>
+  <link rel="stylesheet" href="{% static 'pharos/talk_to_pharos.css' %}"/>
 </head>
 <body>
   {% include 'partial/navbar.html' %}
 
+  <div class="pharos-page-wrap">
   <div id="pharos-app"
        class="pharos-app"
-       data-service-url="{{ pharos_service_url }}">
+       data-service-url="{{ pharos_service_url }}"
+       data-visitor-name="{{ visitor_name }}"
+       data-static-icons="{% static 'pharos/icons/' %}">
 
     <aside class="persona-panel">
       <h2>Choose Your Pharaoh</h2>
@@ -54,6 +58,7 @@
         </div>
       </footer>
     </main>
+  </div>
   </div>
 
   <script src="{% static 'pharos/pharos-voice.js' %}"></script>

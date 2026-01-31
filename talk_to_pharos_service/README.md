@@ -58,4 +58,3 @@ The Django page **Talk To Pharos** is built for **voice-to-voice**:
 - **talk_to_pharos.js** – App: API calls, personas, UI, and wiring: mic → listen → final transcript → `POST /converse` → speak answer → auto-restart listening.
 
 Flow: user clicks mic → continuous listening → on pause, user speech is sent to `/converse` → pharaoh reply is spoken → listening restarts. Text input still works; pharaoh replies are also spoken when sent from the text box.
-

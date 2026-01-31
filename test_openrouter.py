@@ -7,12 +7,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 import requests
 
-# Load environment
-AGENTIC_RAG_PATH = Path(__file__).resolve().parent / "Agentic_RAG"
-load_dotenv(str(AGENTIC_RAG_PATH / ".env"))
+# Load environment from project root .env
+REPO_ROOT = Path(__file__).resolve().parent
+load_dotenv(str(REPO_ROOT / ".env"))
 
-api_key = os.getenv("OPENROUTER_API_KEY")
-model = os.getenv("OPENROUTER_MODEL")
+api_key = os.getenv("OPEN_ROUTER_API_KEY") or os.getenv("OPENROUTER_API_KEY")
+model = os.getenv("OPEN_ROUTER_MODEL") or os.getenv("OPENROUTER_MODEL")
 
 print("=" * 60)
 print("Testing OpenRouter API")

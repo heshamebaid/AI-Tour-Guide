@@ -4,14 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sys
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Ensure OpenRouter key is available from either Agentic_RAG/.env or Agentic_RAG/src/.env
+# Load env from project root .env only
 try:
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    for env_path in (os.path.join(base_dir, 'Agentic_RAG', '.env'), os.path.join(base_dir, 'Agentic_RAG', 'src', '.env')):
-        if os.path.exists(env_path):
-            load_dotenv(env_path)
+    root_dir = Path(__file__).resolve().parent.parent
+    env_path = root_dir / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
 except Exception:
     pass
 

@@ -9,9 +9,9 @@ from pathlib import Path
 AGENTIC_RAG_PATH = Path(__file__).resolve().parent / "Agentic_RAG"
 sys.path.insert(0, str(AGENTIC_RAG_PATH / "src"))
 
-# Load environment
+# Load environment from project root .env
 from dotenv import load_dotenv
-load_dotenv(str(AGENTIC_RAG_PATH / ".env"))
+load_dotenv(str(Path(__file__).resolve().parent / ".env"))
 
 print("=" * 60)
 print("Testing Fixed Embeddings Service")

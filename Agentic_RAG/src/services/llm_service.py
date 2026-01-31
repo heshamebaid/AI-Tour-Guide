@@ -5,9 +5,38 @@ from typing import Generator
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Load env directly
-env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-load_dotenv(str(env_path))
+# Load env from repo root (single .env for all services)
+_repo_root = Path(__file__).resolve().parent.parent.parent.parent
+load_dotenv(_repo_root / ".env")
+
+
+def _format_llm_error(response: requests.Response) -> str:
+    """Turn OpenRouter/LLM API errors into a short, user-friendly message."""
+    if response.status_code == 429:
+        try:
+            body = response.json()
+            err = body.get("error", {})
+            msg = err.get("message", "")
+            meta = err.get("metadata", {}) or {}
+            headers = meta.get("headers", {}) or {}
+            reset_ms = headers.get("X-RateLimit-Reset")
+            if reset_ms and reset_ms.isdigit():
+                from datetime import datetime
+                ts = int(reset_ms) / 1000
+                reset_at = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M UTC")
+                return f"Daily free limit reached. Resets at {reset_at}. You can add credits at openrouter.ai to get more requests."
+            if "free-models-per-day" in (msg or ""):
+                return "Daily free limit reached. Try again tomorrow or add credits at openrouter.ai to unlock more requests."
+        except Exception:
+            pass
+        return "Rate limit exceeded. Try again later or add credits at openrouter.ai."
+    try:
+        body = response.json()
+        err = body.get("error", {})
+        msg = err.get("message", response.text[:200] if response.text else "")
+        return msg or f"LLM API error: {response.status_code}"
+    except Exception:
+        return f"LLM API error: {response.status_code} - {(response.text or '')[:200]}"
 
 
 class SimpleLLM:
@@ -43,7 +72,7 @@ class SimpleLLM:
             content = result["choices"][0]["message"]["content"]
             return SimpleResponse(content)
         else:
-            raise Exception(f"LLM API error: {response.status_code} - {response.text}")
+            raise Exception(_format_llm_error(response))
     
     def stream(self, prompt: str) -> Generator[str, None, None]:
         """Stream the LLM response token by token."""
@@ -68,7 +97,7 @@ class SimpleLLM:
         )
         
         if not response.ok:
-            raise Exception(f"LLM API error: {response.status_code} - {response.text}")
+            raise Exception(_format_llm_error(response))
         
         for line in response.iter_lines():
             if line:
@@ -94,11 +123,13 @@ class SimpleResponse:
 
 
 class LLMService:
-    """LLM Service using direct API calls - fully picklable."""
+    """LLM Service using OpenRouter only (no fallback)."""
     
     def __init__(self):
-        self._model = os.getenv("OPENROUTER_MODEL", "google/gemma-2-9b-it:free")
-        self._api_key = os.getenv("OPENROUTER_API_KEY", "")
+        _raw = os.getenv("OPEN_ROUTER_MODEL") or os.getenv("OPENROUTER_MODEL") or "liquid/lfm-2.5-1.2b-thinking:free"
+        # Qwen free model has no endpoints; use Liquid instead
+        self._model = "liquid/lfm-2.5-1.2b-thinking:free" if _raw and "qwen" in _raw.lower() else (_raw or "liquid/lfm-2.5-1.2b-thinking:free")
+        self._api_key = os.getenv("OPEN_ROUTER_API_KEY", "")
         self._base_url = "https://openrouter.ai/api/v1"
         self._llm = None
     

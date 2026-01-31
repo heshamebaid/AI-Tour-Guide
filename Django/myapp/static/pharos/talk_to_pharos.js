@@ -9,6 +9,7 @@
   if (!appEl) return;
 
   const serviceUrl = (appEl.dataset.serviceUrl || "http://localhost:8050").replace(/\/$/, "");
+  const visitorName = String(appEl.dataset.visitorName || "Guest").trim() || "Guest";
   const personaListEl = document.getElementById("persona-list");
   const timelineEl = document.getElementById("conversation-timeline");
   const inputEl = document.getElementById("traveler-input");
@@ -47,6 +48,23 @@
     return Array.isArray(list) ? list : [];
   }
 
+  const RATE_LIMIT_FRIENDLY = "The daily free limit for this model has been reached. You can add credits at https://openrouter.ai/credits to unlock more requests, or try again tomorrow.";
+
+  function normalizePharaohAnswer(answer) {
+    if (!answer || typeof answer !== "string") return answer;
+    const s = answer.trim();
+    if (/rate limit|free-models-per-day|add \d+ credits|openrouter\.ai/i.test(s)) return RATE_LIMIT_FRIENDLY;
+    return s;
+  }
+
+  function linkifyRateLimitMessage(text) {
+    if (!text || typeof text !== "string") return text;
+    var escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return escaped.replace(/https:\/\/openrouter\.ai\/[^\s]*/g, function (url) {
+      return '<a href="' + url + '" target="_blank" rel="noopener">openrouter.ai</a>';
+    });
+  }
+
   async function converse(userText) {
     const res = await fetch(`${serviceUrl}/converse`, {
       method: "POST",
@@ -62,7 +80,8 @@
       throw new Error(err.detail || "Service error");
     }
     const payload = await res.json();
-    return (payload.answer || "").trim() || "The Pharaoh remains silent...";
+    const raw = (payload.answer || "").trim() || "The Pharaoh remains silent...";
+    return normalizePharaohAnswer(raw);
   }
 
   // ---------- UI ----------
@@ -72,6 +91,9 @@
     serviceStatusEl.className = "service-status " + (ok ? "ready" : "unavailable");
   }
 
+  const staticIcons = (appEl.dataset.staticIcons || "/static/pharos/icons/").replace(/\/?$/, "/");
+  const staticIconsAbs = staticIcons.startsWith("/") || staticIcons.startsWith("http") ? staticIcons : "/" + staticIcons;
+
   function renderPersonas() {
     personaListEl.innerHTML = "";
     personas.forEach((p) => {
@@ -79,7 +101,10 @@
       card.type = "button";
       card.className = "persona-card" + (activePersona && activePersona.id === p.id ? " active" : "");
       card.dataset.personaId = p.id;
-      card.innerHTML = `<div class="avatar">${(p.display_name || "?")[0]}</div><div><h3>${p.display_name}</h3><p>${p.short_bio}</p></div>`;
+      const avatarHtml = p.avatar_asset
+        ? `<div class="avatar avatar-img-wrap"><img class="avatar-img" src="${staticIconsAbs + encodeURIComponent(p.avatar_asset)}" alt="${(p.display_name || "").replace(/"/g, "&quot;")}"></div>`
+        : `<div class="avatar">${(p.display_name || "?")[0]}</div>`;
+      card.innerHTML = avatarHtml + `<span class="persona-card-name">${p.display_name}</span>`;
       card.addEventListener("click", () => selectPersona(p.id));
       personaListEl.appendChild(card);
     });
@@ -90,18 +115,24 @@
     if (!p) return;
     activePersona = p;
     history = [];
-    timelineEl.innerHTML = `<div class="empty-state"><p>You are now connected with ${p.display_name}. Greet them to begin.</p></div>`;
+    timelineEl.innerHTML = `<div class="empty-state"><p>${visitorName}, you are now connected with ${p.display_name}. Greet them to begin.</p></div>`;
     activeNameEl.textContent = p.display_name;
     activeEraEl.textContent = p.era || "";
     renderPersonas();
+    if (voiceApi && typeof voiceApi.setVoiceForPersona === "function") {
+      voiceApi.setVoiceForPersona(p);
+    }
   }
 
   function appendMessage(speaker, text) {
     if (timelineEl.querySelector(".empty-state")) timelineEl.innerHTML = "";
     const msg = document.createElement("div");
     msg.className = "message " + speaker;
-    const label = speaker === "user" ? "Traveler" : (activePersona && activePersona.display_name) || "Pharaoh";
-    msg.innerHTML = `<p class="speaker">${label}</p><p>${text}</p>`;
+    const label = speaker === "user" ? visitorName : (activePersona && activePersona.display_name) || "Pharaoh";
+    const body = speaker === "pharaoh" && /openrouter\.ai|rate limit|free-models-per-day/i.test(String(text))
+      ? linkifyRateLimitMessage(text)
+      : String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    msg.innerHTML = `<p class="speaker">${label}</p><p>${body}</p>`;
     timelineEl.appendChild(msg);
     timelineEl.scrollTop = timelineEl.scrollHeight;
     return msg;
@@ -249,6 +280,9 @@
       return;
     }
 
+    if (activePersona && typeof voiceApi.setVoiceForPersona === "function") {
+      voiceApi.setVoiceForPersona(activePersona);
+    }
     micBtn.addEventListener("click", toggleMic);
   }
 

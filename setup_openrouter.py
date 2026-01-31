@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Setup OpenRouter configuration for all services (Translation API, Chatbot API, Agentic_RAG).
+Setup OpenRouter configuration for all services (Translation API, Chatbot API, Agentic_RAG, Place Details, Talk to Pharos).
 
 Usage examples:
-  python setup_openrouter.py --key sk-or-v1-XXXXX --model qwen/qwen3-30b-a3b:free
+  python setup_openrouter.py --key sk-or-v1-XXXXX --model liquid/lfm-2.5-1.2b-thinking:free
 
 This will:
-  - Write Agentic_RAG/.env with OPEN_ROUTER_API_KEY and optional OPEN_ROUTER_MODEL
+  - Write project root .env with OPEN_ROUTER_API_KEY and optional OPEN_ROUTER_MODEL
   - Load the key into the current process env
   - Verify visibility for Agentic_RAG and report masked key/model
 
@@ -45,26 +45,26 @@ def verify_rag_visibility(project_root: Path) -> tuple[str, str]:
         import pipeline.model as rag_model  # type: ignore
         key = os.getenv("OPEN_ROUTER_API_KEY") or getattr(rag_model, "OPENROUTER_API_KEY", None)
         # Model name may be read from env; default inside module if not set
-        model = os.getenv("OPEN_ROUTER_MODEL") or os.getenv("LLM_MODEL") or "qwen/qwen3-30b-a3b:free"
+        model = os.getenv("OPEN_ROUTER_MODEL") or os.getenv("LLM_MODEL") or "liquid/lfm-2.5-1.2b-thinking:free"
         return key or "", model
     except Exception:
-        return os.getenv("OPEN_ROUTER_API_KEY") or "", os.getenv("OPEN_ROUTER_MODEL") or ""
+        return os.getenv("OPEN_ROUTER_API_KEY") or "", os.getenv("OPEN_ROUTER_MODEL") or "liquid/lfm-2.5-1.2b-thinking:free"
 
 
 def main():
     parser = argparse.ArgumentParser(description="Configure OpenRouter API for all services")
     parser.add_argument("--key", required=True, help="OpenRouter API key (sk-or-v1-…)")
-    parser.add_argument("--model", default=None, help="Optional OpenRouter model id (e.g., qwen/qwen3-30b-a3b:free)")
+    parser.add_argument("--model", default=None, help="Optional OpenRouter model id (e.g., liquid/lfm-2.5-1.2b-thinking:free)")
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parent
-    rag_env = project_root / "Agentic_RAG" / ".env"
+    root_env = project_root / ".env"
 
-    # 1) Write Agentic_RAG/.env
-    write_env_file(rag_env, args.key, args.model)
+    # 1) Write project root .env
+    write_env_file(root_env, args.key, args.model)
 
     # 2) Load into current process env
-    load_dotenv(rag_env)
+    load_dotenv(root_env)
     os.environ["OPEN_ROUTER_API_KEY"] = args.key
     if args.model:
         os.environ["OPEN_ROUTER_MODEL"] = args.model
@@ -73,7 +73,7 @@ def main():
     vis_key, vis_model = verify_rag_visibility(project_root)
 
     print("Configured OpenRouter:")
-    print(f"- Agentic_RAG/.env: {rag_env}")
+    print(f"- .env (project root): {root_env}")
     print(f"- Key (masked): {mask(args.key)}")
     print(f"- Model: {args.model or '(default)'}")
     print("\nDetected at runtime:")

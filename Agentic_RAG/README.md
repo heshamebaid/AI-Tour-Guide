@@ -66,9 +66,9 @@ pip install -r requirements.txt
 Create a `.env` file in the Agentic_RAG directory:
 
 ```env
-# LLM Configuration
+# LLM Configuration (OpenRouter - same default as Place Details)
 OPENROUTER_API_KEY=your_openrouter_api_key
-OPENROUTER_MODEL=meta-llama/llama-3-8b-instruct
+OPENROUTER_MODEL=openai/gpt-4o-mini
 
 # SerpAPI (for image search)
 SERPAPI_API_KEY=your_serpapi_key

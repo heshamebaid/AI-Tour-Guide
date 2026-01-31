@@ -4,22 +4,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Tour Guide - Ancient Egypt Expert</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>Chatbot — AI Tour Guide</title>
+  <link rel="stylesheet" href="{% static 'css/navbar.css' %}"/>
   <style>
+    /* Same palette as Talk to Pharos (pharos-* colors) */
     :root {
       --bg-primary: #0f0f0f;
       --bg-secondary: #1a1a1a;
-      --bg-tertiary: #242424;
+      --bg-tertiary: #252525;
       --bg-hover: #2a2a2a;
       --border-color: #333;
       --text-primary: #e5e5e5;
-      --text-secondary: #a0a0a0;
-      --text-muted: #666;
+      --text-secondary: #888;
+      --text-muted: #888;
       --accent-gold: #c9a227;
       --accent-gold-light: #d4af37;
-      --accent-purple: #8b5cf6;
+      --accent-purple: #b19cd9;
       --success-green: #10b981;
       --error-red: #ef4444;
     }
@@ -31,29 +31,35 @@
     }
     
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg-primary);
+      font-family: "Montserrat", sans-serif;
+      background: linear-gradient(to bottom right, #0f1419, #1a2332);
+      min-height: 100vh;
+      margin: 0;
       color: var(--text-primary);
-      height: 100vh;
-      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     
     .chat-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      flex: 1;
+      min-height: calc(100vh - 64px);
       max-width: 900px;
       margin: 0 auto;
+      width: 100%;
+      padding: 0 1rem;
     }
     
-    /* Header */
+    /* Header (below navbar) */
     .chat-header {
-      padding: 16px 24px;
+      padding: 12px 0 16px;
       border-bottom: 1px solid var(--border-color);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: var(--bg-secondary);
+      background: transparent;
+      margin-bottom: 0;
     }
     
     .header-title {
@@ -104,7 +110,8 @@
     .messages-area {
       flex: 1;
       overflow-y: auto;
-      padding: 24px;
+      padding: 20px 0 16px;
+      min-height: 0;
     }
     
     .messages-list {
@@ -244,6 +251,7 @@
       padding: 12px;
       background: var(--bg-tertiary);
       border-radius: 8px;
+      border: 1px solid var(--border-color);
       border-left: 3px solid var(--accent-gold);
     }
     
@@ -312,7 +320,7 @@
     
     .suggestion-card {
       padding: 16px;
-      background: var(--bg-secondary);
+      background: var(--bg-tertiary);
       border: 1px solid var(--border-color);
       border-radius: 12px;
       cursor: pointer;
@@ -322,7 +330,7 @@
     
     .suggestion-card:hover {
       border-color: var(--accent-gold);
-      background: var(--bg-tertiary);
+      background: var(--bg-hover);
     }
     
     .suggestion-icon {
@@ -337,8 +345,10 @@
     
     /* Input Area */
     .input-area {
-      padding: 16px 24px 24px;
-      background: var(--bg-primary);
+      padding: 16px 0 24px;
+      background: transparent;
+      border-top: 1px solid var(--border-color);
+      padding-top: 20px;
     }
     
     .input-options {
@@ -371,7 +381,7 @@
     }
     
     .option-toggle.active {
-      background: linear-gradient(135deg, rgba(201, 162, 39, 0.2), rgba(212, 175, 55, 0.15));
+      background: rgba(59, 130, 246, 0.15);
       border-color: var(--accent-gold);
       color: var(--accent-gold);
       font-weight: 500;
@@ -379,7 +389,7 @@
     
     .option-toggle.active:hover {
       border-color: var(--accent-gold-light);
-      box-shadow: 0 4px 16px rgba(201, 162, 39, 0.3);
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
     }
     
     .option-toggle input {
@@ -409,7 +419,7 @@
     }
     
     .option-toggle.active .toggle-switch {
-      background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light));
+      background: var(--accent-gold);
     }
     
     .option-toggle.active .toggle-dot {
@@ -431,9 +441,9 @@
     .input-wrapper {
       display: flex;
       gap: 12px;
-      background: var(--bg-secondary);
+      background: var(--bg-tertiary);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
+      border-radius: 12px;
       padding: 8px;
       transition: border-color 0.2s;
     }
@@ -466,10 +476,10 @@
     .send-btn {
       width: 44px;
       height: 44px;
-      background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light));
+      background: var(--accent-gold);
       border: none;
       border-radius: 12px;
-      color: var(--bg-primary);
+      color: #fff;
       font-size: 1.2rem;
       cursor: pointer;
       display: flex;
@@ -486,6 +496,7 @@
       background: var(--bg-tertiary);
       color: var(--text-muted);
       cursor: not-allowed;
+      opacity: 0.7;
     }
     
     /* Loading Dots */
@@ -554,6 +565,7 @@
   </style>
 </head>
 <body>
+  {% include 'partial/navbar.html' %}
   <div class="chat-container">
     <!-- Header -->
     <header class="chat-header">
