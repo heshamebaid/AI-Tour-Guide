@@ -156,3 +156,4 @@ Agentic_RAG/src/controllers/data/vectorstore/
 .DS_Store
 Thumbs.db
 ~$*
+qdrant_storage/
