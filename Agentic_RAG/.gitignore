@@ -25,3 +25,4 @@ tests/
 data/
 vectorstore/
 __pycache__/
+qdrant_storage/
